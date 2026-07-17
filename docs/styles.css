@@ -12,6 +12,12 @@
   --code-bg: #f0f2f5;
   --warn-bg: #fff6e6;
   --warn-border: #e0a93c;
+  --ok-bg: #e9f5eb;
+  --ok-border: #3e8a4c;
+  --stop-bg: #fdeeec;
+  --stop-border: #c0483e;
+  --measure-bg: #f1edfa;
+  --measure-border: #7a5fb8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -26,6 +32,12 @@
     --code-bg: #1e242b;
     --warn-bg: #2a2214;
     --warn-border: #a97e2c;
+    --ok-bg: #17271b;
+    --ok-border: #4d9a5c;
+    --stop-bg: #2c1917;
+    --stop-border: #c2635a;
+    --measure-bg: #221c31;
+    --measure-border: #937bcf;
   }
 }
 
@@ -193,13 +205,163 @@ ul.doc-index > li {
 ul.doc-index h2 { margin: 0 0 0.3rem; border: 0; padding: 0; font-size: 1.15rem; }
 ul.doc-index p { margin: 0; color: var(--muted); }
 
+/* ---- Plan components (shared by the RX-5235 build plan) ---- */
+
+/* Skip link — visually hidden until keyboard focus */
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  z-index: 10;
+  background: var(--accent);
+  color: var(--accent-fg);
+  padding: 0.5rem 1rem;
+  border-radius: 0 0 6px 0;
+}
+.skip-link:focus { left: 0; }
+
+/* Status chip variants — the chip TEXT carries the classification;
+   color only reinforces it */
+.status--confirmed, .status--completed {
+  background: var(--ok-bg); border-color: var(--ok-border); color: var(--fg);
+}
+.status--conditional {
+  background: var(--warn-bg); border-color: var(--warn-border); color: var(--fg);
+}
+.status--unknown {
+  background: var(--measure-bg); border-color: var(--measure-border); color: var(--fg);
+}
+.status--blocked {
+  background: var(--stop-bg); border-color: var(--stop-border); color: var(--fg);
+}
+.status--future { /* default chip look; explicit class for legibility in markup */ }
+
+/* Legend for the status classifications */
+dl.legend {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  margin-block: 1rem;
+}
+dl.legend dt { margin: 0; }
+dl.legend dd { margin: 0; }
+@media (max-width: 480px) {
+  dl.legend { grid-template-columns: 1fr; }
+  dl.legend dd { margin-bottom: 0.5rem; }
+}
+
+/* Signal-flow diagram: an ordered list rendered as boxed nodes with
+   connecting arrows. Purely semantic HTML — order carries the flow. */
+ol.flow {
+  list-style: none;
+  padding: 0;
+  margin-block: 1.25rem;
+  max-width: 34rem;
+}
+ol.flow > li {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  position: relative;
+}
+ol.flow > li + li { margin-top: 1.7rem; }
+ol.flow > li + li::before {
+  content: "\2193";
+  position: absolute;
+  top: -1.55rem;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--muted);
+}
+ol.flow .flow-detail {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+ol.flow > li.flow-unknown { border-style: dashed; }
+
+/* Key/value blocks (phase metadata etc.) */
+dl.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1rem;
+  margin-block: 0.75rem;
+}
+dl.kv dt { font-weight: 600; }
+dl.kv dd { margin: 0; }
+@media (max-width: 540px) {
+  dl.kv { grid-template-columns: 1fr; }
+  dl.kv dd { margin-bottom: 0.45rem; }
+}
+
+/* Print-friendly check-off lists */
+ul.checklist { list-style: none; padding-left: 0.25rem; }
+ul.checklist > li {
+  position: relative;
+  padding-left: 1.7rem;
+  margin-block: 0.4rem;
+}
+ul.checklist > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.3em;
+  width: 0.8em;
+  height: 0.8em;
+  border: 1.5px solid var(--muted);
+  border-radius: 3px;
+}
+
+/* Fill-in blanks for worksheets (print + on-screen) */
+.blank {
+  display: inline-block;
+  min-width: 9rem;
+  border-bottom: 1px solid var(--muted);
+}
+
+/* On-page table of contents */
+nav.toc {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  margin-block: 1.25rem;
+}
+nav.toc h2 {
+  margin: 0 0 0.4rem;
+  border: 0;
+  padding: 0;
+  font-size: 1rem;
+}
+nav.toc ol {
+  margin: 0;
+  padding-left: 1.35rem;
+  columns: 2;
+  column-gap: 2.5rem;
+}
+nav.toc li { break-inside: avoid; }
+@media (max-width: 600px) { nav.toc ol { columns: 1; } }
+
+/* Hard-stop callout: prohibitions and stop conditions */
+.stop {
+  border-left: 4px solid var(--stop-border);
+  background: var(--stop-bg);
+  padding: 0.65rem 1rem;
+  margin-block: 1rem;
+  border-radius: 0 6px 6px 0;
+}
+
 /* Print */
 @media print {
   :root {
     --bg: #ffffff; --fg: #000000; --muted: #444444;
     --surface: #ffffff; --border: #999999; --code-bg: #ffffff;
+    --ok-bg: #ffffff; --stop-bg: #ffffff; --measure-bg: #ffffff;
+    --warn-bg: #ffffff;
   }
-  body > header nav, body > footer { display: none; }
+  body > header nav, body > footer, .skip-link { display: none; }
   body { font-size: 11pt; }
   a { color: inherit; text-decoration: underline; }
   main a[href^="http"]::after {
@@ -208,6 +370,7 @@ ul.doc-index p { margin: 0; color: var(--muted); }
     color: var(--muted);
     overflow-wrap: anywhere;
   }
-  pre, table, .note, .warning { break-inside: avoid; }
+  pre, table, .note, .warning, .stop, ol.flow > li { break-inside: avoid; }
   .table-scroll { overflow: visible; }
+  nav.toc ol { columns: 1; }
 }
