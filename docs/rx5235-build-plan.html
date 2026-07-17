@@ -1,0 +1,2824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RX-5235 build plan — Boombox</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header>
+  <p class="brand"><a href="index.html">Boombox docs</a></p>
+  <nav aria-label="Documentation">
+    <a href="index.html">Index</a>
+    <a href="setup-research.html">Setup research</a>
+    <a href="hardware.html">Hardware</a>
+    <a href="chip-architecture.html">Chip architecture</a>
+    <a href="rx5235-build-plan.html" aria-current="page">RX-5235 plan</a>
+  </nav>
+</header>
+<main id="main">
+  <h1>Panasonic RX-5235 &ldquo;Digital Tape&rdquo; — build &amp; integration plan</h1>
+  <p><strong>Last verified:</strong> 2026-07-17 ·
+  <span class="status">Living execution plan</span> ·
+  <strong>Repo state:</strong> documentation only — no firmware, wiring, or
+  boombox change is made by this plan itself</p>
+  <p class="lede">The working plan for replacing the RX-5235's cassette
+  transport with a phone-connected Bluetooth module while preserving the
+  Panasonic radio, front-panel controls, amplifier, and speakers. It
+  reconciles the supplied 22-section build guide with everything this
+  repository has already verified, and it is meant to be used two ways: open
+  on a laptop at the bench, or printed and kept next to the boombox.</p>
+
+  <nav class="toc" aria-labelledby="toc-heading">
+    <h2 id="toc-heading">On this page</h2>
+    <ol>
+      <li><a href="#scope">Scope &amp; ground rules</a></li>
+      <li><a href="#success">What success looks like</a></li>
+      <li><a href="#legend">Status legend</a></li>
+      <li><a href="#snapshot">Current-state snapshot</a></li>
+      <li><a href="#architecture">Architecture overview</a></li>
+      <li><a href="#milestones">Milestone dashboard M0–M12</a></li>
+      <li><a href="#next">Next three moves</a></li>
+      <li><a href="#phases">Phase catalog (0–14)</a></li>
+      <li><a href="#bom">Bill of materials</a></li>
+      <li><a href="#wiring">Wiring tables</a></li>
+      <li><a href="#tests">Test matrices</a></li>
+      <li><a href="#worksheets">RX-5235 inspection worksheets</a></li>
+      <li><a href="#audio-design">Audio integration design</a></li>
+      <li><a href="#power-design">Power design</a></li>
+      <li><a href="#firmware">Firmware work breakdown</a></li>
+      <li><a href="#serviceability">Serviceability &amp; rollback</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+      <li><a href="#acceptance">Acceptance &amp; project record</a></li>
+      <li><a href="#sources">Source register</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="scope">1. Scope &amp; ground rules</h2>
+  <p><strong>Goal (v1):</strong> the RX-5235's TAPE selector position plays
+  music streamed from a phone over Bluetooth Classic A2DP, through the
+  original Panasonic volume/tone/amplifier/speaker chain. The radio and every
+  other original function keep working. The modification is reversible and
+  serviceable.</p>
+  <ul>
+    <li><strong>Bench-first bias.</strong> The entire digital player — ESP32
+    board, PCM5102A DAC, display, controls, standalone power — is proven
+    <em>outside</em> the boombox first. The first time the RX-5235 is opened
+    is inspection only, not cutting (<a href="#phase-9">Phase 9</a>).</li>
+    <li><strong>Three risk domains, kept separate:</strong> firmware/wiring
+    risk on the ESP32; audio level/noise risk from the DAC; and
+    vintage-electronics risk inside the Panasonic. A failure in one must not
+    be debugged by poking at another.</li>
+    <li><strong>Nothing here authorizes hardware mutation.</strong> Flashing,
+    wiring, opening, and powering are deliberate human actions taken at the
+    phase that calls for them, under that phase's prerequisites and stop
+    conditions. As of the last-verified date, <strong>no RX-5235 internal
+    modification has been authorized or performed</strong>.</li>
+    <li><strong>Evidence discipline.</strong> Every phase defines what to
+    record (photos, measurements, log excerpts). Claims in this plan are
+    classified per the <a href="#legend">status legend</a>; anything not
+    established by a primary source or a recorded measurement is marked
+    UNKNOWN/MEASURE, never guessed.</li>
+    <li><strong>Repo alignment.</strong> Firmware work extends the existing
+    ESP-IDF v6.0.2 project in this repository (pinned via
+    <code>.espidf-version</code>, driven by <code>scripts/</code>) — it is not
+    a disconnected side project. See the
+    <a href="#firmware">firmware work breakdown</a>.</li>
+  </ul>
+  <div class="stop">
+    <p><strong>Standing prohibitions</strong> (they apply in every phase):</p>
+    <ul>
+      <li>No work on the AC mains side of the RX-5235 power supply, ever.</li>
+      <li>No audio injection into tape-head wires, speaker wires, or
+      microphone inputs — wrong signal level, wrong equalization, wrong
+      place (<a href="#audio-design">why, in §13</a>).</li>
+      <li>No driving of any ESP32 GPIO until it has been checked against the
+      official Q125/V18 pinout, the official schematic, boot-strap behavior,
+      header exposure, and onboard circuits
+      (<a href="#wiring">wiring tables, §10</a>).</li>
+      <li>No bulk flash erase; no eFuse writes; flash backups never enter
+      git (<a href="hardware.html#safety">hardware safety rules</a>).</li>
+      <li>Boombox internal work only with AC unplugged and batteries removed,
+      except deliberate powered <em>measurements</em> defined in
+      <a href="#worksheets">§12</a>.</li>
+    </ul>
+  </div>
+
+  <h2 id="success">2. What success looks like</h2>
+  <p>The project is done when all of the following hold with the case closed
+  (the objective checklist with evidence fields is in
+  <a href="#acceptance">§18</a>):</p>
+  <ul>
+    <li>Boombox powers on normally on AC (and battery, if battery operation
+    is retained); <strong>radio works exactly as before</strong>.</li>
+    <li>Selecting TAPE plays phone audio; volume, tone, and balance controls
+    shape it; left/right channels are correct.</li>
+    <li>Bluetooth pairing and reconnect are dependable from across a room
+    with the case closed.</li>
+    <li>No objectionable hum, whine, ticking, or turn-on pop at normal
+    listening volume.</li>
+    <li>The module powers up and down with the boombox power switch.</li>
+    <li>The display sits square in the cassette window and shows connection
+    state, playback state, and (when the phone provides it) track metadata.</li>
+    <li>The original transport keys (or an equivalent deliberate control
+    choice) drive play/pause and track skip.</li>
+    <li>Everything is serviceable: USB access without disassembly, fused
+    power tap, labeled connectors, a service label inside the battery
+    compartment, and a documented restore path back to stock behavior.</li>
+  </ul>
+
+  <h2 id="legend">3. Status legend</h2>
+  <p>Every fact, wiring row, milestone, and step in this plan carries one of
+  these classifications. The chip text is the classification; color only
+  reinforces it.</p>
+  <dl class="legend">
+    <dt><span class="status status--confirmed">CONFIRMED</span></dt>
+    <dd>Established by a primary source (official documentation, datasheet,
+    user-supplied product identification) or a recorded measurement on our
+    actual hardware. Citations sit next to the claim.</dd>
+    <dt><span class="status status--completed">COMPLETED</span></dt>
+    <dd>Work that has already been done, with recorded evidence (file paths,
+    hashes, log output). Do not redo it; verify the evidence instead.</dd>
+    <dt><span class="status status--conditional">CONDITIONAL</span></dt>
+    <dd>Valid only under a stated assumption — most commonly &ldquo;if the
+    official T-Display V18 pin table applies to our physical unit and the
+    pin survives the schematic/strap review.&rdquo; Never wire from a
+    CONDITIONAL row.</dd>
+    <dt><span class="status status--unknown">UNKNOWN / MEASURE</span></dt>
+    <dd>Not established by any primary source. The plan defines how to
+    measure or identify it. Never filled in from forum lore or generic
+    repair habits.</dd>
+    <dt><span class="status status--blocked">BLOCKED / HOLD</span></dt>
+    <dd>Deliberately not started — prerequisites unmet or authorization not
+    given. Each blocked item names what unblocks it.</dd>
+    <dt><span class="status status--future">FUTURE OPTION</span></dt>
+    <dd>Explicitly out of scope for v1; recorded so it isn't designed out by
+    accident (e.g. AVRCP cover art, OTA updates, Wi-Fi streaming).</dd>
+  </dl>
+
+  <h2 id="snapshot">4. Current-state snapshot (corrects the source guide)</h2>
+  <p>The supplied build guide was written before this repository's recent
+  work landed, so several of its instructions are phrased as future work that
+  is <strong>already done</strong>. This table is the authoritative state as
+  of 2026-07-17. When the guide and this table disagree, this table wins.</p>
+  <div class="table-scroll">
+    <table>
+      <caption>State of every major precondition, with evidence</caption>
+      <thead>
+        <tr>
+          <th scope="col">Item</th>
+          <th scope="col">Status</th>
+          <th scope="col">Detail / evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ESP32 silicon identity</td>
+          <td><span class="status status--confirmed">CONFIRMED</span></td>
+          <td>ESP32-D0WDQ6-V3, revision v3.1, dual-core Xtensa LX6, 40&nbsp;MHz
+          crystal — read-only <code>esptool</code> probes
+          (<a href="hardware.html#verified">hardware notes</a>,
+          <a href="chip-architecture.html">chip architecture</a>).</td>
+        </tr>
+        <tr>
+          <td>External flash</td>
+          <td><span class="status status--confirmed">CONFIRMED</span></td>
+          <td>Winbond 16&nbsp;MB SPI, 3.3&nbsp;V (<code>flash-id</code>,
+          read-only).</td>
+        </tr>
+        <tr>
+          <td>USB–UART bridge</td>
+          <td><span class="status status--confirmed">CONFIRMED</span></td>
+          <td>WCH CH9102 family. Port observed as
+          <code>/dev/cu.usbserial-5B1F0057851</code> — <strong>rediscover
+          every session</strong> with <code>ls /dev/cu.*</code>; the name can
+          change. Long transfers unreliable above 230400 baud (921600 and
+          460800 both failed; 230400 completed) — measured, recorded in
+          <a href="hardware.html#safety">hardware safety rules</a>.</td>
+        </tr>
+        <tr>
+          <td>Carrier board product identity</td>
+          <td><span class="status status--confirmed">CONFIRMED</span></td>
+          <td>User-confirmed and official-source-corroborated:
+          <strong>LILYGO T-Display, Q125 variant (16&nbsp;MB, no shell),
+          classic ESP32, CH9102</strong> — see the
+          <a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">official
+          product page</a> and <a href="hardware.html#board">hardware
+          notes</a>. Product-page &ldquo;V18&rdquo; pin table applies
+          conditionally to our unit until the silkscreen is photographed.</td>
+        </tr>
+        <tr>
+          <td>Physical unit silkscreen / revision photo</td>
+          <td><span class="status status--unknown">UNKNOWN / MEASURE</span></td>
+          <td>Not yet photographed. Move&nbsp;1 of
+          <a href="#next">the next three moves</a>.</td>
+        </tr>
+        <tr>
+          <td>Factory flash backup</td>
+          <td><span class="status status--completed">COMPLETED</span></td>
+          <td>Full 16&nbsp;MB pre-write backup exists:
+          <code>~/Library/Application&nbsp;Support/Boombox/backups/boombox-flash-backup-20260717-144304-16MB.bin</code>,
+          16,777,216 bytes, SHA-256
+          <code>421c15e933a66b08854675fbaa82762d52c0079de40be804d78a618a8c7a310a</code>.
+          <strong>Do not instruct or perform another pre-write backup as if
+          none exists.</strong> Restore procedure: <a href="#serviceability">§16</a>.</td>
+        </tr>
+        <tr>
+          <td>Toolchain (ESP-IDF v6.0.2 pinned)</td>
+          <td><span class="status status--completed">COMPLETED</span></td>
+          <td>Installed and pinned via <code>.espidf-version</code>;
+          <code>scripts/doctor.sh</code> and <code>scripts/build.sh</code>
+          pass (<a href="setup-research.html">setup research</a>).</td>
+        </tr>
+        <tr>
+          <td>First flash + smoke test</td>
+          <td><span class="status status--completed">COMPLETED</span></td>
+          <td>Board-neutral, UART-only smoke app flashed at 230400 baud with
+          hash verification and <em>no bulk erase</em>, after the backup
+          above. Observed six stable 5-second heartbeats on the serial
+          monitor. The factory demo firmware is therefore already
+          overwritten (and preserved in the backup).</td>
+        </tr>
+        <tr>
+          <td>Pin-dependent firmware work</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>Blocked on the pin conflict review against the official
+          schematic (<a href="#wiring">§10</a>). The firmware remains
+          board-neutral (console UART only, zero GPIO) until then.</td>
+        </tr>
+        <tr>
+          <td>PCM5102A module variant</td>
+          <td><span class="status status--unknown">UNKNOWN / MEASURE</span></td>
+          <td>Chip facts are CONFIRMED from TI documentation
+          (<a href="#audio-design">§13</a>); the specific carrier module's
+          silkscreen, power topology, and strap pads are not identified.
+          Move&nbsp;2 of <a href="#next">the next three moves</a>.</td>
+        </tr>
+        <tr>
+          <td>RX-5235 internals (rails, selector, dimensions)</td>
+          <td><span class="status status--unknown">UNKNOWN / MEASURE</span></td>
+          <td>No official Panasonic service documentation found in official
+          distribution (checked 2026-07-17; aftermarket originals exist —
+          <a href="#sources">source register</a>). Everything internal is
+          established only by the <a href="#worksheets">§12 worksheets</a>.</td>
+        </tr>
+        <tr>
+          <td>RX-5235 opening / modification</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>Not authorized and not performed. Unblocks at
+          <a href="#phase-9">Phase 9</a> only after milestones M0–M6 pass.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="architecture">5. Architecture overview</h2>
+  <p>The v1 signal chain, end to end. Solid boxes are interfaces we control
+  and can verify on the bench; dashed boxes are interfaces inside the RX-5235
+  that are <strong>unknown until measured</strong>. The digital module up to
+  line-level output is provable entirely outside the boombox — that boundary
+  is the heart of the bench-first rule.</p>
+  <ol class="flow">
+    <li>Phone music app
+      <span class="flow-detail">any A2DP-capable phone; also the source of
+      AVRCP metadata/commands when the app provides them</span></li>
+    <li>Bluetooth Classic A2DP (SBC)
+      <span class="flow-detail">classic BT — supported by our BT&nbsp;4.2
+      BR/EDR + BLE dual-mode ESP32; one source at a time</span></li>
+    <li>LILYGO T-Display (classic ESP32, user-confirmed Q125 16&nbsp;MB)
+      <span class="flow-detail">runs A2DP sink + AVRCP + UI; ST7789 1.14&Prime;
+      135&times;240 display in the cassette window</span></li>
+    <li>I2S digital audio (BCK / LRCK / DIN, 3-wire)
+      <span class="flow-detail">pins CONDITIONAL until the §10 schematic
+      review; APLL-clocked standard mode, 44.1&nbsp;kHz 16-bit stereo</span></li>
+    <li>PCM5102A stereo DAC module
+      <span class="flow-detail">chip CONFIRMED: 2.1&nbsp;V<sub>RMS</sub>
+      ground-centered line output, internal PLL from BCK (no SCK wire);
+      module variant UNKNOWN / MEASURE</span></li>
+    <li class="flow-unknown">Attenuation / isolation network
+      <span class="flow-detail"><span class="status status--unknown">UNKNOWN /
+      MEASURE</span> — series/shunt values are hypotheses until the RX-5235
+      input level is measured (§13)</span></li>
+    <li class="flow-unknown">RX-5235 TAPE source path, at selector level
+      <span class="flow-detail"><span class="status status--unknown">UNKNOWN /
+      MEASURE</span> — injection point chosen only after the §12 worksheets;
+      after the tape preamp/EQ, never the tape head</span></li>
+    <li>Original Panasonic volume / tone / amplifier / speakers
+      <span class="flow-detail">untouched; this is the point of the whole
+      project</span></li>
+  </ol>
+  <p class="note"><strong>Power (final install):</strong> RX-5235 switched
+  low-voltage DC rail (voltage UNKNOWN / MEASURE) → fuse → 5&nbsp;V buck
+  converter → optional LC/ferrite filter → T-Display 5&nbsp;V input →
+  PCM5102A supply per its module docs. Full power design in
+  <a href="#power-design">§14</a>. Until Phase 12, the module runs from USB
+  or a bench supply only.</p>
+
+  <h2 id="milestones">6. Milestone dashboard (M0–M12)</h2>
+  <p>Milestones gate each other — do not combine them, and do not open the
+  boombox before M7. &ldquo;Rollback point&rdquo; is the state you can always
+  return to if that milestone goes wrong.</p>
+  <div class="table-scroll">
+    <table>
+      <caption>Milestones with present status (2026-07-17), prerequisites, exit
+      evidence, and rollback</caption>
+      <thead>
+        <tr>
+          <th scope="col">Milestone</th>
+          <th scope="col">Result</th>
+          <th scope="col">Present status</th>
+          <th scope="col">Prerequisites</th>
+          <th scope="col">Exit evidence</th>
+          <th scope="col">Rollback point</th>
+          <th scope="col">Open boombox?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">M0</th>
+          <td>Board physically verified + pin review done (backup already
+          exists)</td>
+          <td><span class="status">IN PROGRESS</span> — backup, toolchain,
+          smoke flash, and product identity are done; silkscreen photos and
+          the §10 pin review remain</td>
+          <td>none</td>
+          <td>Silkscreen photos; schematic-resolved TFT_RST; filled
+          <a href="#verified-map">verified pin table</a></td>
+          <td>n/a (read-only work)</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <th scope="row">M1</th>
+          <td>ESP32 advertises as a Bluetooth speaker</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span> —
+          awaits M0 (pin review gates any I2S pin config)</td>
+          <td>M0; <a href="#phase-3">Phase 3</a></td>
+          <td>Phone sees the device name; monitor log excerpt saved</td>
+          <td>Reflash smoke app; factory state restorable from backup</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <th scope="row">M2</th>
+          <td>Phone audio plays via PCM5102A into an external amp</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span> —
+          awaits M1 + DAC module identification</td>
+          <td>M1; <a href="#phase-2">Phase 2</a>, <a href="#phase-4">Phase 4</a></td>
+          <td><a href="#test-audio">Audio test matrix</a> rows pass; noise
+          notes recorded</td>
+          <td>Unplug DAC; module unchanged</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <th scope="row">M3</th>
+          <td>Screen shows RX-5235 UI while audio plays cleanly</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>M2; <a href="#phase-5">Phase 5</a></td>
+          <td><a href="#test-coexist">Display/audio coexistence matrix</a>
+          passes</td>
+          <td>Disable UI task; audio-only build still tagged in git</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <th scope="row">M4</th>
+          <td>Bench buttons drive play/pause/next/previous</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>M3; <a href="#phase-6">Phase 6</a></td>
+          <td>AVRCP command log excerpts; debounce notes</td>
+          <td>Remove buttons; audio+UI build unaffected</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <th scope="row">M5</th>
+          <td>Module runs from standalone buck-converted 5&nbsp;V</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>M4; <a href="#phase-7">Phase 7</a>; buck purchased per §9
+          criteria</td>
+          <td><a href="#test-power">Power test matrix</a> passes; measured
+          current draw recorded</td>
+          <td>Return to USB power</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <th scope="row">M6</th>
+          <td>Cassette-bay mockup looks intentional</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>M5; <a href="#phase-8">Phase 8</a></td>
+          <td>Mockup photos; chosen mounting decision recorded in the
+          <a href="#decision-log">decision log</a></td>
+          <td>Cardboard only — nothing to roll back</td>
+          <td>No (outside measurements only)</td>
+        </tr>
+        <tr>
+          <th scope="row">M7</th>
+          <td>RX-5235 opened for inspection only</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span> —
+          also requires explicit go decision</td>
+          <td>M0–M6 all passed; <a href="#phase-9">Phase 9</a></td>
+          <td>Complete <a href="#worksheets">§12 photo inventory</a>; boombox
+          restored and radio re-verified</td>
+          <td>Close it up — nothing was cut</td>
+          <td><strong>Yes — inspection only</strong></td>
+        </tr>
+        <tr>
+          <th scope="row">M8</th>
+          <td>Module proven through an external AUX/LINE input, if the
+          RX-5235 has one</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span> —
+          existence of such an input is UNKNOWN / MEASURE</td>
+          <td>M7 (to know the inputs); <a href="#phase-10">Phase 10</a></td>
+          <td>Level comparison vs radio recorded</td>
+          <td>Unplug cable</td>
+          <td>Maybe; not required</td>
+        </tr>
+        <tr>
+          <th scope="row">M9</th>
+          <td>Cassette mechanism removed <em>reversibly</em></td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>M7; <a href="#phase-11a">Phase 11A</a>; §12 worksheets complete</td>
+          <td>Photos before/after; radio re-verified with mechanism out;
+          removed parts bagged and labeled</td>
+          <td>Reinstall mechanism (nothing cut, connectors intact)</td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <th scope="row">M10</th>
+          <td>Audio injected at the TAPE/selector path</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>M9; <a href="#phase-11b">Phase 11B</a>; §13 measurements done</td>
+          <td>TAPE plays phone audio; RADIO unaffected; injection point +
+          values recorded in the decision log</td>
+          <td>Undo at the reversible disconnect point chosen in 11B</td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <th scope="row">M11</th>
+          <td>Internal switched-rail power works cleanly</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>M10; <a href="#phase-12">Phase 12</a>; §14 measurements done</td>
+          <td>On/off tracks power switch; noise floor acceptable; fuse +
+          measured voltages/current recorded</td>
+          <td>Disconnect tap; module back to USB power</td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <th scope="row">M12</th>
+          <td>Final mount, cassette-key controls, service label, closed-case
+          verification</td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
+          <td>M11; <a href="#phase-13">Phase 13</a>,
+          <a href="#phase-14">Phase 14</a></td>
+          <td><a href="#acceptance">§18 acceptance checklist</a> complete with
+          evidence fields filled</td>
+          <td>Module removable; restore path documented in §16</td>
+          <td>Yes</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="next">7. Next three moves</h2>
+  <p>Honest to today's state — the backup exists, the toolchain works, the
+  smoke app is flashed, and the board's product identity is confirmed. What
+  remains before any wire moves:</p>
+  <ol>
+    <li><strong>Photograph and physically verify the board.</strong> Both
+    sides, good light. Confirm the silkscreen says T-Display and note any
+    revision marking. Pull the official schematic from the
+    <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO/TTGO-T-Display</a>
+    repository and resolve the TFT_RST discrepancy (product page says N/A,
+    repository README says GPIO23 — <a href="#wiring">§10</a>). Record the
+    header-exposed pins. This completes the open half of
+    <a href="#phase-0">Phase 0</a>.</li>
+    <li><strong>Identify the exact PCM5102A module.</strong> Photograph it,
+    read the silkscreen, find its documentation, and determine its power
+    topology and strap-pad state (<a href="#phase-2">Phase 2</a>). Chip facts
+    are known; <em>module</em> behavior is not.</li>
+    <li><strong>Run the pin conflict review, then build the bench A2DP/DAC
+    test.</strong> Fill the <a href="#verified-map">verified assignment
+    table</a> from moves 1–2, then follow <a href="#phase-3">Phase 3</a> /
+    <a href="#phase-4">Phase 4</a> (the v6.0.2 example is
+    <code>a2dp_sink_stream</code>; its stock I2S defaults are BCK&nbsp;26,
+    LRCK&nbsp;27, DATA&nbsp;25 — candidate map B).</li>
+  </ol>
+  <p class="note">A full flash backup already exists and is verified —
+  <strong>do not take another &ldquo;first&rdquo; backup</strong>; verify the
+  recorded SHA-256 instead (<a href="#serviceability">§16</a>).</p>
+
+  <h2 id="phases">8. Phase catalog</h2>
+  <p>Every phase from the source guide, enriched with what this repository
+  has verified. Each phase states purpose, prerequisites, hazards, steps,
+  what to record, pass/fail, stop conditions, rollback, artifacts, and what
+  depends on it. Phases must be worked in order unless a phase explicitly
+  says it can run in parallel.</p>
+
+  <section class="phase">
+    <h3 id="phase-0">Phase 0 — Verify the physical board against the confirmed identity</h3>
+    <p><span class="status status--confirmed">IDENTITY CONFIRMED</span>
+    <span class="status status--unknown">PHYSICAL VERIFY OPEN</span></p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Anchor every later pin decision to the actual unit in hand, not to
+      a product page alone.</dd>
+      <dt>Milestone</dt>
+      <dd>M0 (with the already-completed Phase 1 items)</dd>
+      <dt>Prerequisites</dt>
+      <dd>None — start immediately.</dd>
+      <dt>Hazards</dt>
+      <dd>None; this phase is read-only (camera + documents). Do not probe
+      pins electrically.</dd>
+      <dt>Rollback</dt>
+      <dd>n/a — nothing is modified.</dd>
+      <dt>Artifacts</dt>
+      <dd>Board photos (both sides), schematic PDF copy, updated
+      <a href="hardware.html#board">hardware notes</a> and
+      <a href="#verified-map">§10 verified pin table</a>.</dd>
+      <dt>Feeds</dt>
+      <dd>Every pin-dependent phase (3, 5, 6) and the wiring tables.</dd>
+    </dl>
+    <p><strong>What is already established.</strong> The user supplied the
+    <a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">official
+    LILYGO product page</a> for this board: T-Display, classic ESP32,
+    CH9102, variant <strong>16MB [Q125]</strong> — which matches every
+    measured fact we hold (classic ESP32-D0WDQ6-V3 die, CH9102 bridge,
+    Winbond 16&nbsp;MB flash, BT&nbsp;4.2 + BLE). The product page's
+    &ldquo;V18&rdquo; pin table is recorded in <a href="#v18-map">§10</a>.
+    The silicon-vs-carrier distinction stays deliberate: the die facts are
+    measured; the product identity is user-confirmed and corroborated; the
+    <em>physical PCB revision</em> is not yet established beyond what the
+    V18 table implies.</p>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Photograph both sides of the board in good light; file the photos
+      with the project record (<a href="#acceptance">§18</a>).</li>
+      <li>Read the silkscreen. Expect <code>T-Display</code> (or
+      <code>TTGO T-Display</code>) plus a revision mark; record exactly what
+      it says, including nothing.</li>
+      <li>Fetch the official schematic PDF from the
+      <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO/TTGO-T-Display</a>
+      repository (it also carries factory-test firmware, board files, and 3D
+      files) and keep a local copy with the project record.</li>
+      <li>From the schematic, resolve <strong>TFT_RST</strong>: the current
+      product page lists N/A while the repository README lists GPIO23. Do not
+      silently pick one — record what the schematic shows and which physical
+      revision it applies to.</li>
+      <li>From the schematic plus the physical header, list which GPIOs are
+      actually exposed on the two header rows, and which are consumed by
+      display, buttons, and the ADC power circuit
+      (<a href="#v18-map">V18 table</a>).</li>
+      <li>Record all findings in <a href="hardware.html#board">hardware
+      notes</a> and fill <a href="#verified-map">the verified pin table</a>
+      only with what the schematic + physical unit support.</li>
+    </ol>
+    <p><strong>Record:</strong> silkscreen text verbatim, revision marks,
+    module-can marking if any, header pin count, schematic file name/source
+    URL and its stated revision.</p>
+    <p><strong>Pass:</strong> photos on file; silkscreen consistent with
+    T-Display; TFT_RST resolved from the schematic; header exposure list
+    written; verified pin table started.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> if the silkscreen
+    or schematic contradicts the T-Display identification, halt all
+    pin-dependent planning, mark the board identity UNKNOWN again, and
+    re-identify before proceeding. Keep work read-only (UART, esptool probes)
+    meanwhile.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-1">Phase 1 — Toolchain and factory backup</h3>
+    <p><span class="status status--completed">COMPLETED</span> — historical
+    record; verify, don't redo.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Build/flash capability with the factory firmware preserved first.</dd>
+      <dt>Milestone</dt>
+      <dd>M0 (completed half)</dd>
+      <dt>Evidence</dt>
+      <dd>Backup
+      <code>~/Library/Application&nbsp;Support/Boombox/backups/boombox-flash-backup-20260717-144304-16MB.bin</code>
+      — 16,777,216 bytes, SHA-256
+      <code>421c15e933&hellip;a310a</code> (full hash in
+      <a href="#snapshot">§4</a>), taken <em>before</em> the first write.
+      ESP-IDF v6.0.2 pinned and healthy (<code>scripts/doctor.sh</code>
+      passes). Board-neutral smoke app flashed at 230400 baud with hash
+      verification, no bulk erase; six stable 5-second heartbeats observed
+      on the monitor.</dd>
+      <dt>Feeds</dt>
+      <dd>All firmware phases; the restore path in
+      <a href="#serviceability">§16</a>.</dd>
+    </dl>
+    <p><strong>What remains in this phase (verification only):</strong></p>
+    <ol>
+      <li>Confirm the backup file still exists and its SHA-256 still equals
+      the recorded value (<code>shasum -a 256 &lt;file&gt;</code>).</li>
+      <li>Each session, rediscover the serial port with
+      <code>ls /dev/cu.*</code> — the recorded
+      <code>/dev/cu.usbserial-5B1F0057851</code> is an observation, not a
+      constant.</li>
+      <li>Run <code>scripts/doctor.sh</code> before any build session.</li>
+    </ol>
+    <p><strong>Pass:</strong> hash matches; doctor passes.
+    <strong>Stop condition:</strong> if the hash does not match, treat the
+    backup as compromised — stop all flash-writing work until a trustworthy
+    copy or a new deliberate decision exists. Do not overwrite the backup
+    file.</p>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-2">Phase 2 — Identify the PCM5102A module and prepare bench wiring</h3>
+    <p><span class="status status--confirmed">CHIP FACTS CONFIRMED</span>
+    <span class="status status--unknown">MODULE UNKNOWN / MEASURE</span></p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Turn &ldquo;a PCM5102A module&rdquo; into a documented part with a
+      known power topology and strap configuration, wired on the breadboard
+      with no boombox connection.</dd>
+      <dt>Milestone</dt>
+      <dd>Feeds M2</dd>
+      <dt>Prerequisites</dt>
+      <dd>None (can run in parallel with Phase 0). Wiring to the ESP32
+      happens only after the §10 verified map exists.</dd>
+      <dt>Hazards</dt>
+      <dd>Back-powering or 5&nbsp;V-into-3.3&nbsp;V mistakes; see rules
+      below. No mains, no boombox involvement at all.</dd>
+      <dt>Rollback</dt>
+      <dd>Unplug — breadboard only.</dd>
+      <dt>Artifacts</dt>
+      <dd>Module photos, its documentation link/copy, a filled power-topology
+      note, and the wiring plan merged into <a href="#candidate-map">§10</a>.</dd>
+      <dt>Feeds</dt>
+      <dd>Phases 3–4; the attenuator design in §13.</dd>
+    </dl>
+    <p><strong>Chip facts (CONFIRMED — TI product documentation, see
+    <a href="#sources">sources</a>):</strong> stereo DAC, 112&nbsp;dB SNR,
+    2.1&nbsp;V<sub>RMS</sub> <em>ground-centered</em> line output via
+    DirectPath charge pump (no DC-blocking capacitors required, drives loads
+    down to 1&nbsp;kΩ), 8–384&nbsp;kHz sample rates, 16/24/32-bit data, I2S
+    or left-justified formats, 3.3&nbsp;V analog supply, and an integrated
+    PLL that generates the system clock from BCK — so v1 uses a
+    <strong>3-wire I2S connection (BCK, LRCK/WS, DIN)</strong> with no MCLK
+    wire.</p>
+    <p><strong>Module unknowns (MEASURE):</strong> variant/silkscreen,
+    whether VCC feeds an onboard regulator, whether a separate 3V3 pad is an
+    input or a regulator <em>output</em>, and how the four config pins
+    (FLT, DEMP, XSMT, FMT — per the TI datasheet) are strapped: on common
+    modules they sit on solder pads or pulls; some ship XSMT (soft mute,
+    active low) needing a tie-high, and SCK is usually grounded on-board for
+    PLL mode. <strong>Trust the module's own silkscreen/docs over any
+    generic pinout.</strong></p>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Photograph the module both sides; transcribe every silkscreen
+      label and solder-pad group.</li>
+      <li>Identify the variant (commonly sold as GY-PCM5102) and locate its
+      documentation; save a copy with the project record.</li>
+      <li>Determine the power topology:
+        <ul>
+          <li>Module has only <code>VCC</code> rated 3.3–5&nbsp;V → plan to
+          feed it from the T-Display 5&nbsp;V/USB rail on the bench.</li>
+          <li>Module has a dedicated <code>3V3</code> <em>input</em> → use
+          3.3&nbsp;V only if its docs say input.</li>
+          <li>Module has both → typically VCC is input, 3V3 is the onboard
+          regulator's output. <strong>Never back-power the ESP32 from the
+          module's 3V3 pad.</strong></li>
+        </ul>
+      </li>
+      <li>Determine each strap pad's state (FLT/DEMP/XSMT/FMT, SCK-to-GND)
+      by reading the module docs and the pads themselves; record them.</li>
+      <li>Prepare the output side: 3.5&nbsp;mm stereo breakout or RCA
+      pigtail — LOUT→tip/left-center, ROUT→ring/right-center, module
+      GND→sleeve/shields.</li>
+      <li>Dry-fit breadboard wiring with short leads; do not connect to the
+      ESP32 until the §10 verified map exists.</li>
+    </ol>
+    <p><strong>Record:</strong> module variant, pad states, chosen supply
+    plan, photo references.</p>
+    <p><strong>Pass:</strong> module documented; power plan has zero
+    assumptions; output breakout ready; §10 candidate map annotated with the
+    module's actual pin labels.</p>
+    <div class="stop"><p><strong>Stop conditions:</strong> module cannot be
+    identified and its pads are ambiguous → do not power it; acquire a
+    documented module instead (§9 lists criteria). Never put 5&nbsp;V on any
+    ESP32 GPIO; never power anything from an unmeasured pin.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-3">Phase 3 — Flash the known-good A2DP sink example</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — needs the
+    Phase 0 pin review (M0). Example identity verified against the pinned
+    ESP-IDF version.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Make the ESP32 behave as a Bluetooth speaker with I2S output using
+      Espressif's reference code before any custom firmware exists.</dd>
+      <dt>Milestone</dt>
+      <dd>M1</dd>
+      <dt>Prerequisites</dt>
+      <dd>Phase 0 complete (verified pin map); Phase 1 evidence verified;
+      Phase 2 far enough to know the DAC's expected format (I2S).</dd>
+      <dt>Hazards</dt>
+      <dd>Flashing overwrites the current app (factory firmware is already
+      preserved in the backup). Driving unreviewed pins — prevented by the
+      M0 gate.</dd>
+      <dt>Rollback</dt>
+      <dd>Reflash the repo smoke app; or restore the factory image from
+      backup (<a href="#serviceability">§16</a>).</dd>
+      <dt>Artifacts</dt>
+      <dd>The bench project directory (outside this repo until §15 folds the
+      code into components), chosen sdkconfig deltas, monitor log excerpt.</dd>
+      <dt>Feeds</dt>
+      <dd>Phase 4; the firmware breakdown §15.</dd>
+    </dl>
+    <p><strong>Verified example facts (ESP-IDF v6.0.2, our pinned
+    version):</strong> the classic-BT A2DP sink example is
+    <code>examples/bluetooth/bluedroid/classic_bt/<strong>a2dp_sink_stream</strong></code>.
+    Its stock configuration outputs I2S with defaults <strong>BCK GPIO26,
+    LRCK GPIO27, DATA GPIO25</strong> and advertises as
+    <code>ESP_SPEAKER</code>; menuconfig selects internal-DAC vs external
+    I2S codec output (internal DAC is an 8-bit fallback — we use the
+    external PCM5102A). AVRCP is exercised by <em>separate</em> v6.0.2
+    examples (<code>avrcp_ct_metadata</code>,
+    <code>avrcp_absolute_volume</code>, <code>avrcp_ct_cover_art</code>) —
+    used in <a href="#phase-6">Phase 6</a>.</p>
+    <p class="warning"><strong>Version drift warning.</strong> Older
+    tutorials (and the source guide's §7) reference an
+    <code>a2dp_sink</code> example and bundled AVRCP handling; at v6.0.2 the
+    example tree is as stated above. Exact Kconfig option names for the
+    codec/pin choices should be read from the example's own
+    <code>README.md</code>/<code>menuconfig</code> in the checked-out pinned
+    tree rather than from memory or third-party posts — flag any mismatch in
+    the decision log.</p>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>From the pinned environment, instantiate the example:
+      <code>idf.py create-project-from-example
+      "bluetooth/bluedroid/classic_bt/a2dp_sink_stream"</code> (path per the
+      v6.0.2 tree), then <code>idf.py set-target esp32</code>.</li>
+      <li>In <code>menuconfig</code>: select the <strong>external I2S
+      codec</strong> output path; set BCK/LRCK/DATA to the
+      <a href="#verified-map">verified assignment</a> (if the verified map
+      adopts candidate B, the example defaults 26/27/25 need no change); set
+      the device name to <code>RX-5235 Digital Tape</code>.</li>
+      <li>Build; then flash deliberately over a direct data-capable cable
+      (<code>idf.py -p &lt;port&gt; flash monitor</code>). Normal
+      <code>idf.py flash</code> does not bulk-erase; keep it that way.</li>
+      <li>Watch the monitor for BT stack start and connection events; pair
+      from the phone.</li>
+    </ol>
+    <p><strong>Record:</strong> sdkconfig deltas from stock, device name,
+    monitor excerpt of a successful pairing.</p>
+    <p><strong>Pass:</strong> phone sees <code>RX-5235 Digital Tape</code>
+    (or the stock name if unchanged), pairs, and the monitor shows audio
+    packets/state when playing. No-audio-yet is <em>not</em> a failure of
+    this phase if pairing works — that's Phase 4's job.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> pairing fails
+    repeatedly or the BT stack fails to start → capture the monitor output
+    and work the <a href="#troubleshooting">§17 pairing table</a>; do not
+    start changing GPIOs.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-4">Phase 4 — First audio bench test (external amplifier)</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M1.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Prove phone → ESP32 → PCM5102A → external amp/speaker end-to-end,
+      entirely outside the boombox.</dd>
+      <dt>Milestone</dt>
+      <dd>M2</dd>
+      <dt>Prerequisites</dt>
+      <dd>Phases 2 and 3 passed; a known-good powered speaker, small amp, or
+      stereo AUX input available.</dd>
+      <dt>Hazards</dt>
+      <dd>Hearing/speaker damage from full-scale output — start with phone
+      volume ~30% and amp volume low. The DAC output is
+      2.1&nbsp;V<sub>RMS</sub> at full scale, hotter than many consumer
+      line-ins.</dd>
+      <dt>Rollback</dt>
+      <dd>Unplug; nothing persistent.</dd>
+      <dt>Artifacts</dt>
+      <dd>Completed <a href="#test-audio">audio matrix</a> rows; noise
+      observations; photos of the bench setup.</dd>
+      <dt>Feeds</dt>
+      <dd>M2; §13 level-planning numbers.</dd>
+    </dl>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Power the ESP32 from USB; power the DAC exactly per the Phase 2
+      supply plan; keep I2S wires short and include a solid common
+      ground.</li>
+      <li>Connect DAC line-out to the external amp; volumes low.</li>
+      <li>Pair and play from at least two different apps.</li>
+      <li>Run the <a href="#test-audio">audio</a>,
+      <a href="#test-stereo">stereo orientation</a>, and
+      <a href="#test-noise">noise</a> matrices; then a long-run album test
+      (<a href="#test-thermal">thermal matrix</a>).</li>
+    </ol>
+    <p><strong>Record:</strong> which apps, phone volume %, subjective level
+    vs. other sources on the same amp, any hum/tick/dropout with
+    conditions.</p>
+    <p><strong>Pass:</strong> the module behaves like a normal Bluetooth
+    line-output receiver — stable pairing, correct stereo, clean audio, no
+    thermal or long-run failures — before any display work starts.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> no sound → work
+    the <a href="#troubleshooting">no-audio decision table</a> in order
+    (amp/cable first, then monitor evidence, then ground, then pins, then
+    module straps). Do not rewire at random; every change is one variable at
+    a time.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-5">Phase 5 — Display bring-up without breaking audio</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M2. Display pins are CONDITIONAL until Phase 0 resolves them.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Light up the onboard ST7789 1.14&Prime; 135&times;240 IPS panel
+      (4-wire SPI, 3.3&nbsp;V) and keep audio glitch-free while it
+      updates.</dd>
+      <dt>Milestone</dt>
+      <dd>M3</dd>
+      <dt>Prerequisites</dt>
+      <dd>M2 passed; verified display pin set from Phase 0 (MOSI 19, SCLK 18,
+      CS 5, DC 16, BL 4 per the V18 table; RST per the schematic
+      resolution).</dd>
+      <dt>Hazards</dt>
+      <dd>Display SPI shares the chip with audio timing — an aggressive UI
+      loop can starve the I2S feed (symptom: dropouts on redraw; see §17).</dd>
+      <dt>Rollback</dt>
+      <dd>Git-tagged audio-only build from Phase 4.</dd>
+      <dt>Artifacts</dt>
+      <dd>Display-only test project/commit; chosen rotation; refresh-rate
+      notes.</dd>
+      <dt>Feeds</dt>
+      <dd>M3; UI design in §15.</dd>
+    </dl>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Build a minimal display-only program first (no BT), rendering
+      <code>RX-5235 / DIGITAL TAPE</code>; confirm orientation — landscape
+      is the likely cassette-window fit.</li>
+      <li>Verify backlight control (BL GPIO4) behaves; note brightness
+      levels used.</li>
+      <li>Merge display output into the A2DP project only after the
+      display-only test passes.</li>
+      <li>Keep refresh modest: status-driven redraws, not a constant
+      full-screen loop, until audio reliability is re-proven
+      (<a href="#test-coexist">coexistence matrix</a>).</li>
+    </ol>
+    <p><strong>Suggested v1 screen states:</strong> Boot (&ldquo;RX-5235
+    Digital Tape&rdquo;), Waiting (&ldquo;Bluetooth: Pairing&rdquo;),
+    Connected (phone name if available), Playing (icon + track text +
+    VU/reel animation), Paused, Error (&ldquo;BT disconnected /
+    reconnecting&rdquo;).</p>
+    <p><strong>Record:</strong> rotation, refresh strategy, coexistence
+    matrix results.</p>
+    <p><strong>Pass:</strong> audio keeps playing cleanly while the screen
+    updates through all states.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> audio drops when
+    the display updates → treat as a scheduling/DMA problem (§15 task
+    layout, §17 row), not a reason to change wiring.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-6">Phase 6 — AVRCP metadata and bench controls</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M3.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Playback control and track metadata without touching the phone;
+      controls proven on breadboard buttons before any cassette-key
+      work.</dd>
+      <dt>Milestone</dt>
+      <dd>M4</dd>
+      <dt>Prerequisites</dt>
+      <dd>M3; two to four momentary buttons; verified-available GPIOs from
+      §10 (buttons need <em>input-capable</em> pins; pull-up plan per
+      below).</dd>
+      <dt>Hazards</dt>
+      <dd>GPIO0 is a boot-strap pin (it is also the board's BUTTON2): a
+      button holding it low through a reset forces download mode. Input-only
+      pins (34–39) have no internal pull-ups — external resistors
+      required.</dd>
+      <dt>Rollback</dt>
+      <dd>Remove buttons; M3 build unaffected.</dd>
+      <dt>Artifacts</dt>
+      <dd>Button map table (temp → future cassette key), AVRCP log
+      excerpts.</dd>
+      <dt>Feeds</dt>
+      <dd>Phase 13 (cassette keys reuse this logic).</dd>
+    </dl>
+    <p><strong>Metadata reality check.</strong> A2DP carries audio; AVRCP
+    carries control and metadata <em>when the phone/app provides them</em>.
+    Title/artist display is a nice-to-have, not a dependency — screen
+    priority is: 1) connection state, 2) play/pause state, 3) track
+    title/artist if available, 4) VU bars / reel animation. The v6.0.2 tree
+    ships dedicated AVRCP examples (<code>avrcp_ct_metadata</code>,
+    <code>avrcp_absolute_volume</code>) to crib from — verify their APIs in
+    the pinned tree (<a href="#firmware">§15</a>).</p>
+    <p><strong>Bench button map (temporary → later cassette key):</strong></p>
+    <div class="table-scroll">
+      <table>
+        <caption>Control functions proven on breadboard before any mechanical
+        work</caption>
+        <thead>
+          <tr><th scope="col">Temp button</th><th scope="col">Later key</th>
+          <th scope="col">Function</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>A</td><td>PLAY</td><td>Play / pause</td></tr>
+          <tr><td>B</td><td>FF</td><td>Next track</td></tr>
+          <tr><td>C</td><td>REW</td><td>Previous track</td></tr>
+          <tr><td>D</td><td>STOP/EJECT</td><td>Stop, or disconnect/re-pair</td></tr>
+          <tr><td>long-press / hidden</td><td>REC or PAUSE</td>
+          <td>Pairing reset / admin mode</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Button wiring rules:</strong> only §10-verified GPIOs; never
+    display pins; GPIO0 only with full awareness of the boot-strap
+    consequence (prefer using the two <em>onboard</em> buttons — GPIO35 and
+    GPIO0 — for what they already are); GPIO34–39 are input-only and need
+    external pull-ups; start with active-low buttons (input pulled high,
+    button shorts to GND) and debounce in firmware.</p>
+    <p><strong>Pass:</strong> at least play/pause and next-track work from
+    bench buttons with zero audio glitches; AVRCP events visible in the
+    log.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> a button wired to
+    a strap pin disturbs boot → rewire to a clean pin; never work around a
+    boot problem in software.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-7">Phase 7 — Standalone power test outside the boombox</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M4.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Remove the computer's USB power from the equation so noise,
+      brownout, and reconnect behavior show their true colors — and validate
+      the exact buck converter destined for the final install.</dd>
+      <dt>Milestone</dt>
+      <dd>M5</dd>
+      <dt>Prerequisites</dt>
+      <dd>M4; bench power supply; the chosen buck converter and fuse
+      (purchased per <a href="#bom">§9</a> criteria — buck input range is a
+      &ldquo;do not buy until measured&rdquo; item only for the final rail;
+      for the bench it must at least cover the test range below).</dd>
+      <dt>Hazards</dt>
+      <dd>Mis-set buck output — <strong>set and verify 5.0&nbsp;V with a
+      meter before connecting the ESP32</strong>. Reverse polarity;
+      unfused bench mistakes.</dd>
+      <dt>Rollback</dt>
+      <dd>Return to USB power.</dd>
+      <dt>Artifacts</dt>
+      <dd>Measured current draw (idle / paired / playing / display-max),
+      completed <a href="#test-power">power matrix</a>.</dd>
+      <dt>Feeds</dt>
+      <dd>M5; the fuse sizing and headroom numbers in §14.</dd>
+    </dl>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Run the full stack from a standalone USB wall supply first;
+      re-run pairing/playback/reconnect.</li>
+      <li>Switch to the buck converter fed from a bench supply. Start the
+      input low and raise it only within the buck's rated input range,
+      simulating plausible rail values; keep a fuse on the buck input even
+      on the bench.</li>
+      <li>Measure and record current at 5&nbsp;V for: idle-paired, playing,
+      playing + display full brightness, and reconnect bursts.</li>
+      <li>Listen (amp connected) for switching noise at each condition;
+      note whether an LC filter / ferrite changes it.</li>
+      <li>Complete the <a href="#test-power">power/brownout matrix</a>,
+      including deliberate brownout-recovery behavior.</li>
+    </ol>
+    <p><strong>Record:</strong> every measured current, buck model/settings,
+    noise observations with and without filtering.</p>
+    <p><strong>Pass:</strong> stable operation and clean audio from
+    buck-converted power, with measured current numbers in hand for §14.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> brownouts or
+    switching whine that filtering doesn't tame → change the buck (per §9
+    criteria), don't push on — the boombox install will only be worse.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-8">Phase 8 — Mechanical cassette-bay mockup (outside only)</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M5. All measurements are taken from the <em>outside</em>; the boombox
+    stays closed.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Make the future install look intentional — and expose mechanical
+      surprises — before the RX-5235 is ever opened.</dd>
+      <dt>Milestone</dt>
+      <dd>M6</dd>
+      <dt>Prerequisites</dt>
+      <dd>M5 (so the real module dimensions, wiring bulk, and service-cable
+      needs are known).</dd>
+      <dt>Hazards</dt>
+      <dd>None electrical. Use tape that won't mark the case.</dd>
+      <dt>Rollback</dt>
+      <dd>Remove cardboard; nothing permanent.</dd>
+      <dt>Artifacts</dt>
+      <dd>Window/door measurements, mockup photos, and the recorded mounting
+      decisions.</dd>
+      <dt>Feeds</dt>
+      <dd>Phase 13 (controls) and Phase 14 (final mounting).</dd>
+    </dl>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Measure the cassette window and door from outside: opening width,
+      height, depth to the door glass, door swing clearance.</li>
+      <li>Build a cardboard/foamcore insert shaped like the future
+      &ldquo;digital cassette&rdquo; module; tape the T-Display behind it
+      and view it through the window.</li>
+      <li>Decide and record (in the <a href="#decision-log">decision
+      log</a>): screen flush vs. recessed behind a dark lens; removable
+      fake-cassette vs. chassis-mounted bracket; where the USB service cable
+      routes; whether the original cassette keys stay mechanically
+      active.</li>
+      <li>Sketch the intended face:
+      <code>[BT] RX-5235 DIGITAL TAPE</code> / reels-or-VU animation / track
+      title / artist.</li>
+    </ol>
+    <p><strong>Record:</strong> all measurements (they feed bracket/bezel
+    choices in §9), decisions with reasons.</p>
+    <p><strong>Pass:</strong> you can point at where the screen, ESP32, DAC,
+    buck, wiring, service access, and future controls will each physically
+    live, and the mockup looks right through the window.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> the module cannot
+    fit without cutting visible structure → stop and redesign (smaller
+    bracket, recessed mount, or FUTURE OPTION: relocate electronics away
+    from the bay with only the display in the window).</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-9">Phase 9 — First RX-5235 opening: inspection only</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — requires
+    M0–M6 all passed <em>and</em> a deliberate go decision. This is the
+    first time the boombox is opened, and nothing is cut, desoldered, or
+    removed.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Learn the machine — layout, connectors, wiring, mechanism — without
+      changing it.</dd>
+      <dt>Milestone</dt>
+      <dd>M7</dd>
+      <dt>Prerequisites</dt>
+      <dd>M0–M6; camera; masking tape + pen for labeling; the
+      <a href="#worksheets">§12 worksheets</a> printed.</dd>
+      <dt>Hazards</dt>
+      <dd>Vintage electronics: brittle plastics, aged wiring. Mains
+      capacitors can hold charge — <strong>AC unplugged, batteries out,
+      and stay off the mains side entirely</strong>.</dd>
+      <dt>Rollback</dt>
+      <dd>Close it up; nothing was altered.</dd>
+      <dt>Artifacts</dt>
+      <dd>The complete §12 photo inventory and labeling record.</dd>
+      <dt>Feeds</dt>
+      <dd>Phases 10–14 all depend on what this phase records.</dd>
+    </dl>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Unplug AC; remove all batteries; photograph the outside first.</li>
+      <li>Remove the back carefully; photograph the inside before touching
+      anything.</li>
+      <li>Label connectors with tape where practical; photograph every label
+      in place.</li>
+      <li>Photograph, specifically: cassette mechanism wiring, tape-head
+      wiring, motor wiring, record/play switch area, and function-selector
+      wiring (the §12 worksheets give the shot list).</li>
+      <li>Do not cut wires. Do not remove the cassette deck unless it
+      unplugs cleanly and restorably — and even then, prefer leaving it for
+      Phase 11A.</li>
+      <li>Identify (visually, power off) the areas the §12 worksheets name:
+      function selector, tape playback preamp region, record/play switch,
+      motor supply, candidate switched DC rail, audio ground.</li>
+      <li>Close the boombox; <strong>confirm the radio still works</strong>
+      before anything else proceeds.</li>
+    </ol>
+    <p><strong>Record:</strong> §12 worksheets — photo inventory, connector
+    labels, and the &ldquo;what to identify&rdquo; table.</p>
+    <p><strong>Pass:</strong> boombox restored to fully normal operation;
+    photo record complete enough that later phases can be planned away from
+    the open machine.</p>
+    <div class="stop"><p><strong>Stop conditions:</strong> anything must be
+    forced, or plastics are failing → stop, photograph, close up, and
+    reassess. If the radio does not work after reassembly → nothing else
+    proceeds until it does (see <a href="#troubleshooting">§17</a>,
+    mechanism-switch row).</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-10">Phase 10 — Prove the boombox amp path without internal wiring</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M7. Whether the RX-5235 has any external AUX/LINE/CD input is
+    <span class="status status--unknown">UNKNOWN / MEASURE</span> (recorded
+    in the §12 worksheets during Phase 9).</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Hear the digital module through the Panasonic amp/speakers with
+      zero internal modification, and learn whether the DAC level suits the
+      machine.</dd>
+      <dt>Milestone</dt>
+      <dd>M8 (optional if no external input exists)</dd>
+      <dt>Prerequisites</dt>
+      <dd>M7; a suitable cable if an input exists.</dd>
+      <dt>Hazards</dt>
+      <dd>Hot DAC output into an unknown-sensitivity input — volumes low on
+      both ends first.</dd>
+      <dt>Rollback</dt>
+      <dd>Unplug the cable.</dd>
+      <dt>Artifacts</dt>
+      <dd>Loudness comparison vs radio; distortion notes; the decision on
+      whether attenuation is needed (§13).</dd>
+      <dt>Feeds</dt>
+      <dd>§13 attenuator values; the M10 go decision.</dd>
+    </dl>
+    <p><strong>If an external input exists:</strong> connect the DAC output
+    to it, both volumes low, play, and compare loudness against the radio at
+    the same volume-knob position; note whether the DAC is hotter (expect it
+    may be — 2.1&nbsp;V<sub>RMS</sub> full-scale is a modern, hot line
+    level). <strong>If not:</strong> keep using an external amp for module
+    testing — do <em>not</em> jump to internal injection; the path to M10
+    runs through the §12 selector tracing either way.</p>
+    <p><strong>Pass:</strong> you know (a) the Panasonic amp/speakers sound
+    good with the module, and (b) roughly how far off the levels are.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> gross distortion
+    even at low phone volume → do not proceed to injection; resolve levels
+    on the bench first (§13).</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-11a">Phase 11A — Remove the cassette transport, reversibly</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M7 (and normally M8's knowledge); requires §12 worksheets complete.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Free the cassette bay for the digital module while preserving
+      every electrical function the rest of the machine needs.</dd>
+      <dt>Milestone</dt>
+      <dd>M9</dd>
+      <dt>Prerequisites</dt>
+      <dd>M7 passed; photos/labels complete; §12 mechanism-switch worksheet
+      filled (which contacts the radio/amp path depends on).</dd>
+      <dt>Hazards</dt>
+      <dd>Removing the mechanism can leave record/play or tape/radio
+      contacts in a state that silences other functions (§17 row). Springs
+      and levers under tension.</dd>
+      <dt>Rollback</dt>
+      <dd>Reinstall the mechanism — this phase allows <em>no cutting</em>;
+      only unplugging and unscrewing.</dd>
+      <dt>Artifacts</dt>
+      <dd>Before/during/after photos; bagged-and-labeled hardware; updated
+      §12 worksheets; decision-log entry for any contact that had to be
+      bridged/kept.</dd>
+      <dt>Feeds</dt>
+      <dd>Phase 11B (injection), Phase 13 (keys), Phase 14 (mounting).</dd>
+    </dl>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Re-verify photos/labels cover everything the removal touches.</li>
+      <li>Remove the mechanism only if it disconnects at connectors or
+      screws; keep every fastener bagged and labeled.</li>
+      <li>Preserve any switch assembly the radio/amp needs — especially
+      record/play contacts — if separable from the transport. If not
+      separable, record exactly what state the contacts must sit in and how
+      that will be maintained (deliberate, reversible means only).</li>
+      <li>Power up (case open, hands clear, mains side untouched) and
+      <strong>re-verify the radio and every remaining source position</strong>.</li>
+    </ol>
+    <p><strong>Pass:</strong> mechanism out; radio and other functions
+    verified working; every removed part restorable.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> the radio dies
+    with the mechanism out → trace the mechanism-linked contacts (§17) and
+    restore them <em>reversibly</em> before continuing. Never leave the
+    machine in a broken state between sessions.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-11b">Phase 11B — Inject line-level audio at the TAPE/selector path</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M9 plus the §13 measurements. This is the first electrically invasive
+    step in the audio path.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Make the TAPE selector position play the DAC through the original
+      volume/tone/amp — at the right level, at the right node, reversibly.</dd>
+      <dt>Milestone</dt>
+      <dd>M10</dd>
+      <dt>Prerequisites</dt>
+      <dd>M9; §12 selector/audio worksheets filled (injection node candidates
+      + measured amplitudes); §13 attenuation plan computed from those
+      measurements; parts on hand (§9 integration list).</dd>
+      <dt>Hazards</dt>
+      <dd>Wrong node (tape head, speaker, mic) — prohibited (§1). Ground
+      loops and hum from careless grounding (§13). Soldering near aged
+      plastics.</dd>
+      <dt>Rollback</dt>
+      <dd>Disconnect at the chosen reversible point — the design requirement
+      is that one exists (connector, tap, or restorable joint).</dd>
+      <dt>Artifacts</dt>
+      <dd>Injection node photos + schematic sketch; final series/shunt
+      values; decision-log entry.</dd>
+      <dt>Feeds</dt>
+      <dd>M10; Phase 12 (power) and Phase 14 (final dressing).</dd>
+    </dl>
+    <p><strong>Strategy (see <a href="#audio-design">§13</a> for the
+    reasoning):</strong> do not feed the tape-head input — heads produce
+    microvolt-to-millivolt signals into a dedicated EQ'd preamp. The correct
+    integration point is where the TAPE source joins the selector/volume
+    path at line-ish level, <em>after</em> that preamp/EQ stage. The exact
+    node is UNKNOWN / MEASURE until the §12 worksheets locate it on this
+    machine.</p>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Confirm the injection node candidates from §12 with a powered
+      measurement: play the radio, measure AC signal amplitude at the
+      selector's TAPE-side nodes per the worksheet, and identify where the
+      original tape signal entered the common path.</li>
+      <li>Disconnect the original tape-signal feed <em>at a reversible
+      point</em>; label both sides.</li>
+      <li>Inject DAC L/R through the §13 network — first pass: 2.2&nbsp;k
+      to 10&nbsp;k series per channel; add the shunt only if measurement
+      says so; grounds joined at the single deliberate point (§13).</li>
+      <li>Test at low volume; then run the level/noise checks in the
+      <a href="#test-audio">audio</a> and <a href="#test-noise">noise</a>
+      matrices through the boombox.</li>
+      <li>Verify <strong>every other selector position still behaves</strong>
+      (RADIO, and any others present).</li>
+    </ol>
+    <p><strong>Pass:</strong> TAPE plays phone audio through the original
+    controls; volume-knob range feels comparable to radio; other positions
+    unaffected; injection is documented and reversible.</p>
+    <div class="stop"><p><strong>Stop conditions:</strong> only badly
+    distorted or hum-laden audio achievable → back out (reversible point),
+    return to bench, and rework §13 with the measured numbers. Any
+    temptation to &ldquo;just try&rdquo; the head/speaker/mic nodes —
+    prohibited, full stop.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-12">Phase 12 — Internal power integration</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M10 and the §14 measurements. The rail voltage is
+    <span class="status status--unknown">UNKNOWN / MEASURE</span> — nothing
+    is bought or connected until it is measured.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Power the module from the boombox so it lives and dies with the
+      power switch — safely, fused, and quietly.</dd>
+      <dt>Milestone</dt>
+      <dd>M11</dd>
+      <dt>Prerequisites</dt>
+      <dd>M10; §12 power worksheet (switched rail identified, voltage
+      measured on AC and battery); §14 buck/fuse selection made from those
+      measurements; Phase 7 current numbers.</dd>
+      <dt>Hazards</dt>
+      <dd><strong>Mains side is untouchable.</strong> Motor rail is not the
+      supply (unmeasured, possibly switched by transport state — it may
+      later serve as a mode-sense input, a FUTURE OPTION). Reversed or
+      unfused taps.</dd>
+      <dt>Rollback</dt>
+      <dd>Remove the tap; module returns to USB/service power.</dd>
+      <dt>Artifacts</dt>
+      <dd>Measured rail voltages (AC + battery), tap point photos, fuse
+      value + reasoning, noise results.</dd>
+      <dt>Feeds</dt>
+      <dd>M11; Phase 14.</dd>
+    </dl>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>With the machine powered only as needed for measurement (mains
+      side closed off), identify low-voltage DC rails per the §12 power
+      worksheet; find one that is <strong>switched</strong> by the power
+      switch — present when ON, absent when OFF.</li>
+      <li>Measure the chosen rail on AC power <em>and</em> on batteries (if
+      battery operation matters); record min/max.</li>
+      <li>Select the buck per §14 (input range comfortably above the highest
+      measured value; output pre-set and verified at 5.0&nbsp;V before the
+      ESP32 ever connects).</li>
+      <li>Install: rail → fuse (at the tap, sized per §14) → buck →
+      optional LC/ferrite → the same 5&nbsp;V input point validated in
+      Phase 7 → DAC supply per its module plan.</li>
+      <li>Tie the module ground to the Panasonic <em>audio</em> ground at
+      one deliberate point (§13/§14 grounding rules).</li>
+      <li>Noise-hunt with music paused, volume moderately high: if noise
+      exists, iterate — shorter ground path, buck farther from tuner/preamp,
+      LC/ferrite on the 5&nbsp;V line, shielded audio run, lower
+      backlight.</li>
+      <li>Verify on/off tracking, then re-run the
+      <a href="#test-power">power matrix</a> in-machine.</li>
+    </ol>
+    <p><strong>Pass:</strong> module boots with power-on, dies with
+    power-off, adds no objectionable noise, on both AC and battery if
+    applicable.</p>
+    <div class="stop"><p><strong>Stop conditions:</strong> no cleanly
+    switched rail with adequate headroom exists → stop; consider a FUTURE
+    OPTION (dedicated switched supply or always-on rail + soft power logic)
+    rather than an unsafe tap. Any urge to tap the mains side —
+    prohibited.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-13">Phase 13 — Final controls using the cassette keys</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
+    M11 (safe power) and reuses the Phase 6 control logic.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Give the original transport keys a second life driving the digital
+      module.</dd>
+      <dt>Milestone</dt>
+      <dd>M12 (with Phase 14)</dd>
+      <dt>Prerequisites</dt>
+      <dd>M11; Phase 8 mounting decisions; microswitches or equivalent
+      chosen (§9 mechanical list).</dd>
+      <dt>Hazards</dt>
+      <dd>Key mechanics under spring tension; switch wiring must respect the
+      same GPIO rules as Phase 6 (no strap-pin surprises with the case
+      closed).</dd>
+      <dt>Rollback</dt>
+      <dd>Controls are additive — module still works from onboard buttons /
+      phone if key wiring is removed.</dd>
+      <dt>Artifacts</dt>
+      <dd>Final key→function map; switch mounting photos.</dd>
+      <dt>Feeds</dt>
+      <dd>Phase 14 closure checks.</dd>
+    </dl>
+    <p><strong>Mechanical options (choose in the decision log):</strong></p>
+    <div class="table-scroll">
+      <table>
+        <caption>Ways to make the original keys act on the module</caption>
+        <thead>
+          <tr><th scope="col">Option</th><th scope="col">Pros</th>
+          <th scope="col">Cons</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Keep original keys + add microswitches</td>
+          <td>Best vintage feel</td><td>Mechanical fitting takes patience</td></tr>
+          <tr><td>Fake-cassette insert with its own buttons</td>
+          <td>Reversible and clean</td><td>Less original key feel</td></tr>
+          <tr><td>Only the T-Display onboard buttons</td>
+          <td>Fastest; zero mechanics</td><td>Not satisfying as a boombox mod</td></tr>
+          <tr><td>Hidden rotary encoder in the bay</td>
+          <td>Good UI for volume/track</td><td>Extra mounting work</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Recommended mapping:</strong> PLAY → play/pause; FF → next;
+    REW → previous; STOP/EJECT → stop or disconnect/reconnect; PAUSE →
+    pause/mute; REC → pairing reset / hidden setup (long-press
+    semantics from Phase 6).</p>
+    <p><strong>Pass:</strong> controls work with the case closed, cannot
+    disturb boot (no strap-pin key resting closed at power-on), and are
+    serviceable later.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> a key chatter or
+    stuck-closed failure mode could hold a strap pin at reset → rewire that
+    function to a safe pin; never accept a boot hazard for control
+    convenience.</p></div>
+  </section>
+
+  <section class="phase">
+    <h3 id="phase-14">Phase 14 — Final assembly and verification</h3>
+    <p><span class="status status--blocked">BLOCKED / HOLD</span> — the
+    closing phase; awaits everything above.</p>
+    <dl class="kv">
+      <dt>Purpose</dt>
+      <dd>Convert the working lash-up into a serviceable, closed-case,
+      finished machine.</dd>
+      <dt>Milestone</dt>
+      <dd>M12</dd>
+      <dt>Prerequisites</dt>
+      <dd>M11 passed; Phase 13 controls installed; §9 mechanical parts on
+      hand.</dd>
+      <dt>Hazards</dt>
+      <dd>Pinched wires on closing; boards shorting to chassis/shielding/
+      speaker magnets; antenna region buried under metal (§17 RF row).</dd>
+      <dt>Rollback</dt>
+      <dd>The §16 restore path — module removal and return toward stock —
+      must remain possible after this phase.</dd>
+      <dt>Artifacts</dt>
+      <dd>Final photos, the filled §18 acceptance checklist, the service
+      label installed.</dd>
+      <dt>Feeds</dt>
+      <dd>Done.</dd>
+    </dl>
+    <p><strong>Steps.</strong></p>
+    <ol>
+      <li>Replace temporary wiring with soldered/perfboard or connectorized
+      runs; strain-relieve everything that moves with the door.</li>
+      <li>Mount the buck away from the tuner coils and audio preamp wiring;
+      DAC close to the injection point or on shielded cable.</li>
+      <li>Mount the display square in the cassette window per the Phase 8
+      decision; verify no board can short against chassis, shielding, or
+      speaker magnets.</li>
+      <li>Keep the ESP32 antenna area clear of metal; verify closed-case
+      Bluetooth range (<a href="#test-rf">RF matrix</a>).</li>
+      <li>Install the service label (template in
+      <a href="#serviceability">§16</a>) inside the battery compartment.</li>
+      <li>Run the entire <a href="#acceptance">§18 acceptance checklist</a>
+      with the case closed; fill every evidence field.</li>
+    </ol>
+    <p><strong>Pass:</strong> §18 checklist fully green with evidence.</p>
+    <div class="stop"><p><strong>Stop condition:</strong> any checklist row
+    fails → reopen the relevant phase; do not ship a known-bad close.</p></div>
+  </section>
+
+  <h2 id="bom">9. Bill of materials (reconciled)</h2>
+  <p>Split by when it's needed and how sure we are. <strong>Rule:</strong>
+  anything marked <span class="status status--unknown">MEASURE FIRST</span>
+  is not purchased until the named measurement exists — buying a buck
+  converter before the rail is measured, or an attenuator before the input
+  level is measured, is how parts drawers fill up.</p>
+
+  <h3 id="bom-onhand">9.1 On hand</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Parts already owned</caption>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col">Role</th>
+        <th scope="col">Status note</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>LILYGO T-Display (classic ESP32, Q125 16&nbsp;MB)</td>
+        <td>Bluetooth receiver, display, control logic</td>
+        <td><span class="status status--confirmed">CONFIRMED</span> product
+        identity; physical verify in Phase 0</td></tr>
+        <tr><td>PCM5102A I2S DAC module (GY-PCM5102-class)</td>
+        <td>Stereo line-level output</td>
+        <td><span class="status status--unknown">MODULE UNKNOWN</span> —
+        identify in Phase 2</td></tr>
+        <tr><td>Breadboard</td><td>Bench wiring</td><td>—</td></tr>
+        <tr><td>Panasonic RX-5235</td><td>Final host</td>
+        <td>Untouched; internals UNKNOWN / MEASURE</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="bom-bench">9.2 Needed for bench work (Phases 2–7)</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Bench-phase purchases and their selection criteria</caption>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col">Why</th>
+        <th scope="col">Selection criteria / ratings to confirm</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Male-to-male Dupont wires</td><td>Breadboard runs</td>
+        <td>Short lengths preferred — I2S wants short wires</td></tr>
+        <tr><td>3.5&nbsp;mm stereo jack breakout or RCA pigtail</td>
+        <td>DAC line-out to test amps</td>
+        <td>Stereo, with accessible ground/sleeve</td></tr>
+        <tr><td>Powered speaker / small amp / stereo with AUX in</td>
+        <td>Known-good sink to prove audio</td>
+        <td>Must be known-working with another source first</td></tr>
+        <tr><td>Multimeter</td><td>Rails, grounds, continuity, levels</td>
+        <td>AC millivolt range useful for §13 measurements; true-RMS
+        preferred</td></tr>
+        <tr><td>Data-capable USB-C cable</td><td>Flash + monitor</td>
+        <td>Direct connection, no hubs (hardware safety rules)</td></tr>
+        <tr><td>Momentary push buttons (2–4)</td><td>Phase 6 bench
+        controls</td><td>Plus external pull-up resistors (e.g. 10&nbsp;k)
+        if any lands on input-only GPIO 34–39</td></tr>
+        <tr><td>USB wall supply</td><td>Phase 7 standalone test</td>
+        <td>Known-good, adequately rated 5&nbsp;V</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="bom-integration">9.3 Needed for boombox integration (Phases 11B–14)</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Integration purchases — several deliberately wait for
+      measurements</caption>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col">Why</th>
+        <th scope="col">Selection criteria / flags</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Buck converter (→ 5&nbsp;V)</td>
+        <td>Power the module from the boombox rail</td>
+        <td><span class="status status--unknown">MEASURE FIRST</span> —
+        input range comfortably above the highest §12-measured rail
+        voltage (AC <em>and</em> battery); output current ≥ 2× the Phase 7
+        measured peak; adjustable output verified 5.0&nbsp;V before
+        first connection; switching frequency/noise behavior evaluated in
+        Phase 7</td></tr>
+        <tr><td>Fuse holder + fuse</td><td>Protect the tap and the
+        machine</td>
+        <td><span class="status status--unknown">MEASURE FIRST</span> —
+        sized per §14 methodology after current is measured; inline holder
+        at the tap point</td></tr>
+        <tr><td>Series/shunt resistors or 10&nbsp;k dual trim pot</td>
+        <td>Level-match DAC to the Panasonic input</td>
+        <td><span class="status status--unknown">MEASURE FIRST</span> —
+        values from §13 after the input-level measurement; metal film,
+        1/4&nbsp;W ample</td></tr>
+        <tr><td>Hookup wire, heat-shrink, strain relief, labels</td>
+        <td>Serviceable permanent wiring</td>
+        <td>Stranded wire for anything that moves; label both ends</td></tr>
+        <tr><td>Small perfboard or custom bracket</td>
+        <td>Permanent mounting</td>
+        <td>Dimensions from Phase 8 mockup</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="bom-noise">9.4 Optional / noise control</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Bought only if the noise hunt (Phases 7/12) calls for them</caption>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col">When it earns its
+        place</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>LC filter or ferrite beads for the 5&nbsp;V line</td>
+        <td>Switching noise audible in Phase 7/12 listening tests</td></tr>
+        <tr><td>Shielded stereo cable (DAC → injection point)</td>
+        <td>Hum/pickup on the in-chassis audio run</td></tr>
+        <tr><td>Alternative buck converter (different topology/frequency)</td>
+        <td>Whine that filtering can't remove</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="bom-mech">9.5 Mechanical / cosmetic</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Cassette-bay finishing parts (dimensions from Phase 8)</caption>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col">Why</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Tinted acrylic or 3D-printed bezel</td>
+        <td>Clean cassette-window display finish</td></tr>
+        <tr><td>Microswitches (if the keys stay active)</td>
+        <td>Phase 13 key sensing</td></tr>
+        <tr><td>Foamcore/cardboard (mockup), then bracket stock</td>
+        <td>Phase 8 mockup → Phase 14 mount</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="bom-test">9.6 Test equipment (beyond the multimeter)</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Nice-to-have instrumentation and what it unlocks</caption>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col">What it unlocks</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Oscilloscope (even entry-level)</td>
+        <td>§13 signal-amplitude measurements at the selector; I2S clock
+        sanity (<a href="#test-i2s">matrix</a>); ripple on the 5&nbsp;V
+        rail</td></tr>
+        <tr><td>Phone-based audio analyzer or test-tone files</td>
+        <td>Channel-orientation and frequency checks (L/R test signals,
+        sweep tones)</td></tr>
+        <tr><td>Current meter / USB power meter</td>
+        <td>Phase 7 current profile without breaking the circuit</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="wiring">10. Wiring tables</h2>
+  <p class="warning"><strong>Nothing on this page authorizes wiring.</strong>
+  The only table anyone may wire from is the
+  <a href="#verified-map">verified assignment table (10.4)</a>, and it is
+  deliberately blank until Phase 0's schematic review fills it. Candidate
+  tables exist so the review has something concrete to review.</p>
+
+  <h3 id="v18-map">10.1 T-Display onboard pin map — official, V18 table</h3>
+  <p>From the
+  <a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">official
+  LILYGO product page</a> (its &ldquo;V18&rdquo; pin table), corroborated by
+  the official
+  <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">TTGO-T-Display
+  repository</a> README. Status:
+  <span class="status status--confirmed">CONFIRMED for V18</span> —
+  application to our physical unit is
+  <span class="status status--conditional">CONDITIONAL</span> until Phase 0
+  photographs the silkscreen.</p>
+  <div class="table-scroll">
+    <table>
+      <caption>Pins the board itself consumes (never available for the DAC or
+      controls)</caption>
+      <thead>
+        <tr><th scope="col">Function</th><th scope="col">GPIO</th>
+        <th scope="col">Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>TFT_MOSI</td><td>19</td><td>Display SPI data</td></tr>
+        <tr><td>TFT_SCLK</td><td>18</td><td>Display SPI clock</td></tr>
+        <tr><td>TFT_CS</td><td>5</td><td>Display select — also a classic-ESP32
+        strapping pin (timing of SDIO; safe as used by the board, but do not
+        repurpose)</td></tr>
+        <tr><td>TFT_DC</td><td>16</td><td>Data/command</td></tr>
+        <tr><td>TFT_RST</td><td><strong>N/A vs 23 — unresolved</strong></td>
+        <td><span class="status status--unknown">UNKNOWN / MEASURE</span> —
+        the product page's V18 table says N/A; the official repository README
+        says GPIO23. Resolve from the official schematic in Phase 0 before
+        relying on TFT reset <em>or</em> treating GPIO23 as free. Do not
+        silently pick one.</td></tr>
+        <tr><td>TFT_BL (backlight)</td><td>4</td><td>PWM-able backlight
+        control</td></tr>
+        <tr><td>I2C_SDA</td><td>21</td><td>Header I2C label — free only if
+        no I2C peripheral is ever used</td></tr>
+        <tr><td>I2C_SCL</td><td>22</td><td>Header I2C label — same
+        caveat; note the source guide's candidate map A uses this pin</td></tr>
+        <tr><td>ADC_IN (battery sense)</td><td>34</td><td>Input-only
+        pin</td></tr>
+        <tr><td>BUTTON1</td><td>35</td><td>Onboard button; input-only pin,
+        no internal pull-up</td></tr>
+        <tr><td>BUTTON2</td><td>0</td><td>Onboard button on the boot-strap
+        pin — held low at reset = serial download mode</td></tr>
+        <tr><td>ADC power enable</td><td>14</td><td>Battery-sense circuit
+        control per the V18 table</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Display panel: ST7789/ST7789V, 1.14&Prime; IPS, 135&times;240, 4-wire
+  SPI, 3.3&nbsp;V (official product page; repository names ST7789). The
+  official repository also hosts the schematic, factory-test firmware, board
+  files, and 3D files — the schematic is the Phase 0 arbiter.</p>
+
+  <h3 id="strap-map">10.2 Classic-ESP32 pin cautions (die-level, apply regardless of board)</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Pins that carry chip-level constraints (ESP32 datasheet; see
+      chip architecture notes)</caption>
+      <thead>
+        <tr><th scope="col">Pin(s)</th><th scope="col">Constraint</th>
+        <th scope="col">Consequence for this project</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>GPIO 34, 35, 36, 39 (and 37, 38 where exposed)</td>
+        <td>Input-only; no output drivers, no internal pull-ups</td>
+        <td>Never candidates for I2S out; buttons need external
+        pull-ups</td></tr>
+        <tr><td>GPIO 0, 2, 5, 12 (MTDI), 15 (MTDO)</td>
+        <td>Strapping pins sampled at reset (boot mode, flash voltage,
+        debug output)</td>
+        <td>Nothing may hold them in the wrong state at power-on; avoid for
+        keys that can rest closed (Phase 13)</td></tr>
+        <tr><td>GPIO 25, 26</td>
+        <td>Also the two 8-bit internal DAC outputs (I2S0 built-in DAC
+        mode)</td>
+        <td>Fine as digital I2S pins; coincidentally keeps the internal-DAC
+        fallback path on the same wires</td></tr>
+        <tr><td>GPIO 6–11</td><td>Connected to the SPI flash on virtually
+        all modules</td><td>Never available; not on T-Display headers</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="candidate-map">10.3 Candidate I2S maps — CONDITIONAL, for the Phase 0 review</h3>
+  <p><span class="status status--conditional">CONDITIONAL</span> — both maps
+  assume the V18 table applies, that the pins are exposed on our unit's
+  headers (verify from schematic + physical header), and that the
+  schematic review finds no onboard conflict. <strong>Neither map is
+  approved for wiring.</strong></p>
+  <div class="table-scroll">
+    <table>
+      <caption>Candidate pin assignments for the 3-wire I2S link to the
+      PCM5102A</caption>
+      <thead>
+        <tr>
+          <th scope="col">Signal</th>
+          <th scope="col">Map A — source guide's suggestion</th>
+          <th scope="col">Map B — ESP-IDF v6.0.2 example defaults
+          (preferred candidate)</th>
+          <th scope="col">PCM5102A module pin</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Bit clock (BCK)</th><td>GPIO26</td>
+        <td>GPIO26</td><td>BCK / BCLK</td></tr>
+        <tr><th scope="row">Word select (LRCK/WS)</th>
+        <td>GPIO22 — <strong>collides with the header's I2C_SCL
+        label</strong>; acceptable only if I2C is permanently
+        forgone</td>
+        <td>GPIO27</td><td>LCK / LRCK / WS</td></tr>
+        <tr><th scope="row">Data (ESP32 → DAC)</th><td>GPIO25</td>
+        <td>GPIO25</td><td>DIN / DATA</td></tr>
+        <tr><th scope="row">System clock</th><td colspan="2">not wired —
+        PCM5102A generates SCK internally from BCK (PLL mode); follow the
+        module's guidance (commonly SCK is tied to GND on-board)</td>
+        <td>SCK / MCLK</td></tr>
+        <tr><th scope="row">Ground</th><td colspan="2">common ground,
+        short and direct</td><td>GND</td></tr>
+        <tr><th scope="row">Power</th><td colspan="2">per the Phase 2
+        module power plan (5&nbsp;V VCC or 3.3&nbsp;V input — module
+        docs decide)</td><td>VCC / 3V3</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>Why map B is the preferred candidate:</strong> GPIO 26/27/25
+  avoids the I2C-labeled header pins entirely, uses output-capable
+  non-strapping pins, and is byte-for-byte the v6.0.2
+  <code>a2dp_sink_stream</code> example default (BCK&nbsp;26, LRCK&nbsp;27,
+  DATA&nbsp;25) — the first bench flash can run with stock pin config. The
+  guide's alternate map (BCK&nbsp;27, LRCK&nbsp;26, DATA&nbsp;25) is an
+  equally reviewable variant if map B fails review. All of them still
+  require the Phase 0 schematic/header check.</p>
+
+  <h3 id="verified-map">10.4 Verified assignment table (fill only from the Phase 0 review)</h3>
+  <p>Filled only after: silkscreen photographed, schematic fetched, TFT_RST
+  resolved, header exposure confirmed, strap/input-only review done, and the
+  DAC module's actual pin labels known (Phase 2). Until every row is filled
+  and signed, all wiring stays on hold.</p>
+  <div class="table-scroll">
+    <table>
+      <caption>The only wiring-authorized table on this page — blank by
+      design</caption>
+      <thead>
+        <tr>
+          <th scope="col">Signal</th>
+          <th scope="col">ESP32 GPIO (verified)</th>
+          <th scope="col">DAC module pin (as silkscreened)</th>
+          <th scope="col">Checked against</th>
+          <th scope="col">Verified by / date</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">BCK</th><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td>
+        <td>schematic ☐ · straps ☐ · header ☐ · onboard use ☐</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><th scope="row">LRCK / WS</th><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td>
+        <td>schematic ☐ · straps ☐ · header ☐ · onboard use ☐</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><th scope="row">DATA (DIN)</th><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td>
+        <td>schematic ☐ · straps ☐ · header ☐ · onboard use ☐</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><th scope="row">Button 1 (if external)</th>
+        <td><span class="blank"></span></td><td>—</td>
+        <td>schematic ☐ · straps ☐ · pull-up plan ☐</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><th scope="row">Button 2 (if external)</th>
+        <td><span class="blank"></span></td><td>—</td>
+        <td>schematic ☐ · straps ☐ · pull-up plan ☐</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><th scope="row">DAC power</th><td>—</td>
+        <td><span class="blank"></span></td>
+        <td>module docs ☐ · voltage verified ☐</td>
+        <td><span class="blank"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="tests">11. Test matrices</h2>
+  <p>Each matrix is run at the phase that references it; results are
+  recorded (a checkmark is not evidence — write the observed value). Rows
+  marked ▲ repeat inside the boombox after integration.</p>
+
+  <h3 id="test-bt">11.1 Bluetooth pairing / reconnect / AVRCP</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Run at Phases 3–6; repeat closed-case at Phase 14 (▲)</caption>
+      <thead>
+        <tr><th scope="col">Test</th><th scope="col">How</th>
+        <th scope="col">Pass</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Discovery</td><td>Fresh phone scan</td>
+        <td>Device name visible within ~10&nbsp;s</td></tr>
+        <tr><td>Pairing</td><td>Pair from scratch</td>
+        <td>Completes without retries</td></tr>
+        <tr><td>Reconnect after module power-cycle ▲</td>
+        <td>Power-cycle ESP32 mid-track</td>
+        <td>Phone reconnects without manual fuss</td></tr>
+        <tr><td>Reconnect after phone leaves/returns ▲</td>
+        <td>Walk out of range, return</td>
+        <td>Resumes without re-pairing</td></tr>
+        <tr><td>Second-device behavior</td>
+        <td>Try pairing a second phone while connected</td>
+        <td>Defined, non-crashing behavior (single source expected)</td></tr>
+        <tr><td>AVRCP commands</td><td>Play/pause/next/prev from module
+        buttons</td><td>Phone obeys; log shows commands</td></tr>
+        <tr><td>AVRCP metadata</td><td>Play from ≥2 apps</td>
+        <td>Title/artist shown when the app provides them; blank handled
+        gracefully</td></tr>
+        <tr><td>Pairing reset</td><td>Hidden/long-press action</td>
+        <td>Bond cleared; fresh pairing possible</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="test-i2s">11.2 I2S clock / data sanity</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Run at Phase 4 (scope optional but preferred; §9.6)</caption>
+      <thead>
+        <tr><th scope="col">Test</th><th scope="col">How</th>
+        <th scope="col">Pass</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>BCK present</td><td>Scope/probe BCK while playing</td>
+        <td>Steady clock ≈ sample-rate × 32 for 16-bit stereo
+        (~1.41&nbsp;MHz at 44.1&nbsp;kHz)</td></tr>
+        <tr><td>LRCK present</td><td>Probe LRCK</td>
+        <td>Square wave at the sample rate (~44.1&nbsp;kHz)</td></tr>
+        <tr><td>Data activity</td><td>Probe DIN during music vs silence</td>
+        <td>Busy during music; near-constant during digital silence</td></tr>
+        <tr><td>Wiring robustness</td><td>Wiggle test on breadboard runs</td>
+        <td>No dropouts — else shorten/reseat wires</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="test-stereo">11.3 Stereo / channel orientation</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Run at Phase 4; repeat at Phase 11B through the boombox (▲)</caption>
+      <thead>
+        <tr><th scope="col">Test</th><th scope="col">How</th>
+        <th scope="col">Pass</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Left/right identity ▲</td>
+        <td>Play an L/R announcement test track</td>
+        <td>&ldquo;Left&rdquo; from the left speaker</td></tr>
+        <tr><td>Separation ▲</td><td>Hard-panned material</td>
+        <td>Clear separation, no heavy bleed</td></tr>
+        <tr><td>Mono compatibility</td><td>Mono source material</td>
+        <td>Centered image, no cancellation artifacts</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="test-audio">11.4 DAC line level &amp; audio quality</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Run at Phase 4 (external amp) and Phase 11B (boombox, ▲)</caption>
+      <thead>
+        <tr><th scope="col">Test</th><th scope="col">How</th>
+        <th scope="col">Pass</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Full-scale level</td>
+        <td>Meter (AC&nbsp;V) on DAC out with a 0&nbsp;dBFS tone</td>
+        <td>Order of 2&nbsp;V<sub>RMS</sub> (chip spec) — record the
+        actual number for §13 math</td></tr>
+        <tr><td>Distortion by volume ▲</td>
+        <td>Sweep phone volume 10→100% on clean material</td>
+        <td>No audible clipping below the loud-but-clean point; note where
+        it degrades</td></tr>
+        <tr><td>Level match vs radio ▲</td>
+        <td>Switch TAPE↔RADIO at fixed volume knob (Phase 11B)</td>
+        <td>Comparable loudness; no startling jump</td></tr>
+        <tr><td>Multi-app behavior</td><td>≥2 player apps</td>
+        <td>Consistent level and stability</td></tr>
+        <tr><td>Long-run integrity</td><td>Full album/playlist</td>
+        <td>No dropouts, crashes, or drift (feeds 11.6)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="test-noise">11.5 Noise</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Run at Phases 4, 7, 11B, 12 (▲) — silence is the test
+      signal</caption>
+      <thead>
+        <tr><th scope="col">Test</th><th scope="col">How</th>
+        <th scope="col">Pass</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Idle floor ▲</td><td>Paused music, volume moderately
+        high</td><td>No loud buzz/tick/whine at normal listening
+        position</td></tr>
+        <tr><td>Display coupling ▲</td><td>Force UI updates during
+        silence</td><td>No tick pattern correlated with redraws</td></tr>
+        <tr><td>Power-source comparison</td><td>USB vs buck supply
+        (Phase 7)</td><td>Buck adds no new audible noise (else §9.4
+        remedies)</td></tr>
+        <tr><td>Ground-loop probe ▲</td><td>Touch/lift candidate ground
+        joins (safely, low volume)</td><td>Identify the quiet single-point
+        ground; record it</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="test-thermal">11.6 Thermal / long-run</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Run at Phase 4 bench and repeat closed-case at Phase 14 (▲)</caption>
+      <thead>
+        <tr><th scope="col">Test</th><th scope="col">How</th>
+        <th scope="col">Pass</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Album soak ▲</td><td>≥45&nbsp;min continuous playback</td>
+        <td>No crash, no thermal shutdown, no degradation</td></tr>
+        <tr><td>Touch check ▲</td><td>Carefully feel ESP32/DAC/buck after
+        soak</td><td>Warm at most; nothing painful to touch</td></tr>
+        <tr><td>Closed-case soak ▲</td><td>Repeat inside the closed
+        boombox (Phase 14)</td><td>Same result with no ventilation
+        surprises</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="test-power">11.7 Power / brownout</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Run at Phase 7 (bench) and Phase 12 (in-machine, ▲)</caption>
+      <thead>
+        <tr><th scope="col">Test</th><th scope="col">How</th>
+        <th scope="col">Pass</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Current profile</td><td>Measure at 5&nbsp;V: idle-paired /
+        playing / playing + max backlight / reconnect burst</td>
+        <td>Recorded numbers; peak informs buck + fuse sizing (§14)</td></tr>
+        <tr><td>Brownout recovery</td><td>Dip the buck input briefly</td>
+        <td>Clean reset and reconnect; no wedged state</td></tr>
+        <tr><td>On/off tracking ▲</td><td>Boombox power switch cycles
+        (Phase 12)</td><td>Module boots with ON, dies with OFF, no
+        zombie drain</td></tr>
+        <tr><td>Battery-mode behavior ▲</td><td>If battery operation is
+        retained: run on batteries</td><td>Stable through the measured
+        battery rail range</td></tr>
+        <tr><td>Turn-on/off pop ▲</td><td>Listen at power transitions
+        (volume mid)</td><td>No loud pop (see §13 mute sequencing)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="test-coexist">11.8 Display / audio coexistence</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Run at Phase 5 and continuously thereafter</caption>
+      <thead>
+        <tr><th scope="col">Test</th><th scope="col">How</th>
+        <th scope="col">Pass</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Redraw under load</td><td>Force screen-state churn while
+        playing</td><td>Zero audible dropouts</td></tr>
+        <tr><td>Animation cost</td><td>Enable VU/reel animation</td>
+        <td>No dropouts; CPU headroom logged (§15)</td></tr>
+        <tr><td>Brightness coupling</td><td>Sweep backlight during
+        playback</td><td>No audio artifacts correlated with PWM</td></tr>
+        <tr><td>Metadata burst</td><td>Track changes with long titles</td>
+        <td>UI updates without audio glitch</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="test-rf">11.9 Closed-case RF performance</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Run at Phase 14 — the case, chassis, and speaker magnets are
+      now part of the antenna environment</caption>
+      <thead>
+        <tr><th scope="col">Test</th><th scope="col">How</th>
+        <th scope="col">Pass</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Range, case closed</td><td>Walk-away test in a normal
+        room</td><td>Solid audio at across-the-room distance</td></tr>
+        <tr><td>Orientation sensitivity</td><td>Rotate the boombox; phone
+        in pocket</td><td>No dropouts in normal positions</td></tr>
+        <tr><td>Open vs closed comparison</td><td>Same spot, case open
+        then closed</td><td>No dramatic degradation (else reposition the
+        antenna area away from metal — §17)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="worksheets">12. RX-5235 inspection &amp; measurement worksheets</h2>
+  <p>Print these for Phase 9 onward. They exist because <strong>no official
+  Panasonic service documentation is in hand</strong> — every internal fact
+  this project uses must be established here, on this machine, and recorded.
+  Fields left blank mean the fact is still UNKNOWN.</p>
+  <div class="stop">
+    <p><strong>Prohibited regardless of any worksheet finding:</strong> work
+    on the AC mains side; injection into tape-head, speaker, or microphone
+    wiring; powering the module from the motor rail; any irreversible cut
+    before M9's reversibility standard is met. Powered measurements happen
+    with hands clear, one probe at a time, on the low-voltage side only.</p>
+  </div>
+
+  <h3 id="ws-photo">12.1 Photo inventory (Phase 9)</h3>
+  <ul class="checklist">
+    <li>Outside, all sides, before opening — including the cassette door
+    open and closed</li>
+    <li>Back panel screws/fasteners before removal (locations differ —
+    photograph the pattern)</li>
+    <li>Full interior overview immediately after opening, before anything
+    is touched</li>
+    <li>Cassette mechanism: overall, then wiring runs, then each
+    connector</li>
+    <li>Tape-head wiring and its route to the board</li>
+    <li>Motor and motor wiring</li>
+    <li>Record/play switch area (usually on/near the mechanism)</li>
+    <li>Function selector: switch body, wafer/contacts, every wire
+    entering/leaving</li>
+    <li>Power supply region — <em>photographed from a distance; mains side
+    is not approached</em></li>
+    <li>Speaker connections and grounding points</li>
+    <li>Every label applied during the session, in place</li>
+  </ul>
+
+  <h3 id="ws-connectors">12.2 Connector &amp; label record</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>One row per connector/cable touched or labeled</caption>
+      <thead>
+        <tr><th scope="col">Label</th><th scope="col">From → to</th>
+        <th scope="col">Wire colors / pins</th>
+        <th scope="col">Photo ref</th><th scope="col">Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="ws-identify">12.3 What to identify and why (Phase 9 targets)</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Inspection targets — identification only; measurement comes
+      in 12.4–12.6</caption>
+      <thead>
+        <tr><th scope="col">Area</th><th scope="col">Why it matters</th>
+        <th scope="col">Found / notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Function selector</td><td>The map of TAPE/RADIO routing —
+        the eventual injection neighborhood</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Tape playback preamp region</td><td>Injection must land
+        <em>after</em> this stage, never before</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Record/play switch</td><td>Mechanism removal can leave its
+        contacts in a function-killing state</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Motor supply</td><td>Understanding only — possible future
+        mode-sense signal; never the module supply</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Main switched DC rail</td><td>Candidate buck input for
+        Phase 12</td><td><span class="blank"></span></td></tr>
+        <tr><td>Audio ground</td><td>Needed for quiet injection (§13)</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>External AUX/LINE/CD input (if any)</td><td>Enables
+        Phase 10 / M8</td><td><span class="blank"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="ws-power">12.4 Power worksheet (Phases 9/12)</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Rail measurements — the §14 design consumes these numbers</caption>
+      <thead>
+        <tr><th scope="col">Measurement</th><th scope="col">Condition</th>
+        <th scope="col">Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>AC/battery configuration of the machine</td>
+        <td>visual</td><td><span class="blank"></span></td></tr>
+        <tr><td>Candidate switched rail — voltage, power ON</td>
+        <td>AC power</td><td><span class="blank"></span></td></tr>
+        <tr><td>Same rail, power OFF (must be ~0)</td><td>AC power</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Same rail, power ON</td><td>Battery power</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Rail sag while radio plays loudly</td><td>worst case</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Module current draw (from Phase 7)</td><td>peak observed</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Headroom check: rail min − buck dropout ≥ required input?</td>
+        <td>computed</td><td><span class="blank"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="ws-audio">12.5 Audio-path worksheet (Phases 9/11B)</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Selector-node measurements — the §13 attenuator math consumes
+      these</caption>
+      <thead>
+        <tr><th scope="col">Measurement</th><th scope="col">Condition</th>
+        <th scope="col">Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Where the tape signal joins the selector path (node,
+        photo ref)</td><td>traced visually</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Signal amplitude at that node, radio playing at reference
+        volume</td><td>AC&nbsp;mV, meter/scope</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Amplitude at normal-loud listening level</td>
+        <td>AC&nbsp;mV</td><td><span class="blank"></span></td></tr>
+        <tr><td>Audio ground point chosen for injection</td>
+        <td>photo ref</td><td><span class="blank"></span></td></tr>
+        <tr><td>Reversible disconnect point for the old tape feed</td>
+        <td>photo ref</td><td><span class="blank"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="ws-mech">12.6 Mechanism-switch worksheet (Phases 9/11A)</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Which contacts the rest of the machine depends on</caption>
+      <thead>
+        <tr><th scope="col">Switch / contact</th>
+        <th scope="col">What it does (traced)</th>
+        <th scope="col">State needed with mechanism removed</th>
+        <th scope="col">How that state is preserved (reversible)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Record/play contacts</td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Tape/radio (leaf) switch, if present</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Motor switch/interlock</td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Other: <span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="ws-decisions">12.7 Reversible decision points</h3>
+  <p>Each of these is decided during the boombox phases and logged in the
+  <a href="#decision-log">decision log</a> with its undo path: mechanism
+  fully out vs partially retained · record/play contact preservation method ·
+  injection node and disconnect point · ground join point · power tap point ·
+  key mechanics choice · display mounting choice · what (if anything) is
+  permanently altered — target: <strong>nothing</strong>.</p>
+
+  <h2 id="audio-design">13. Audio integration design</h2>
+  <h3 id="why-line">13.1 Why line-level injection after the tape preamp/EQ</h3>
+  <p>A cassette head delivers a tiny signal (microvolts to low millivolts)
+  that the machine feeds into a dedicated playback preamp with tape
+  equalization; that stage's output is what the selector routes into the
+  volume/tone/amplifier chain. The PCM5102A is a <em>line-level</em> source —
+  <span class="status status--confirmed">CONFIRMED</span>
+  2.1&nbsp;V<sub>RMS</sub> full-scale, ground-centered, no coupling caps
+  required, happy into loads down to 1&nbsp;kΩ (TI documentation). Feeding a
+  line-level, flat-response signal into a head input would be three errors at
+  once: enormous overdrive, wrong equalization, and the wrong impedance
+  world. The correct node is where the TAPE source joins the selector at
+  line-ish level — located by measurement in
+  <a href="#ws-audio">worksheet 12.5</a>, never by assumption.</p>
+  <p class="note">Ground-centered output also means the DAC's outputs sit at
+  0&nbsp;V DC — but the RX-5235 side of the joint is unknown until measured.
+  If the injection node shows a DC bias, revisit coupling (series capacitor)
+  at that point; decide from the 12.5 measurements, not by habit.</p>
+
+  <h3 id="attenuation">13.2 Attenuation — hypothesis now, values after measurement</h3>
+  <p><span class="status status--unknown">UNKNOWN / MEASURE</span> — the
+  Panasonic's expected level at the injection node is not known. The working
+  hypothesis from the source guide, kept as a <em>starting point only</em>:</p>
+  <ul>
+    <li><strong>First pass:</strong> 2.2&nbsp;k–10&nbsp;k series resistance
+    per channel (isolation + modest loss into the machine's input
+    impedance).</li>
+    <li><strong>If still hot:</strong> a divider per channel — e.g.
+    10&nbsp;k series with 2.2&nbsp;k to audio ground ≈ ratio 0.18
+    (−15&nbsp;dB): a 2.1&nbsp;V<sub>RMS</sub> full-scale becomes roughly
+    0.38&nbsp;V<sub>RMS</sub>, a plausible vintage-line-ish level.
+    <em>These numbers are arithmetic on a hypothesis, not a
+    measurement.</em></li>
+  </ul>
+  <p><strong>Measure, then choose:</strong> (1) record the 12.5 node
+  amplitude with the radio playing at a reference volume; (2) measure the
+  DAC's actual full-scale output on the bench (matrix 11.4); (3) size the
+  divider so DAC full-scale lands near the radio's amplitude at the same
+  node; (4) confirm by ear with the volume-knob comparison (matrix 11.4
+  level-match row); (5) a 10&nbsp;k dual trim pot is the adjustable
+  alternative — set it by the same comparison, then measure and record the
+  resulting division so it can be made fixed later.</p>
+
+  <h3 id="grounding">13.3 Grounding, shielding, and noise isolation</h3>
+  <ul>
+    <li><strong>One deliberate ground join</strong> between module ground
+    and the Panasonic <em>audio</em> ground — chosen in worksheet 12.5,
+    tested in matrix 11.5's ground-loop row. Multiple casual joins invite
+    hum loops.</li>
+    <li>Keep the DAC physically near the injection point, or use shielded
+    cable for the run (shield to the single ground point, one end).</li>
+    <li>Keep the buck converter and its wiring away from the tuner and the
+    preamp input region (§14); dress digital wiring away from audio
+    wiring.</li>
+    <li>Series resistors sit at the <em>injection end</em> to keep the
+    unshielded stub short.</li>
+  </ul>
+
+  <h3 id="pop">13.4 Turn-on pop and mute sequencing</h3>
+  <p>The PCM5102A provides a soft-mute control (XSMT, per the TI datasheet)
+  and modules commonly strap it; Phase 2 records how ours is wired. Design
+  intent: hold mute until the I2S clocks are stable after boot, and mute
+  before shutdown when possible, so the Panasonic amp never amplifies a
+  start-up transient (verified by matrix 11.7's pop row). If the module
+  hard-straps XSMT high, rely on the DAC's own ramp behavior and verify the
+  pop row empirically — add the FUTURE OPTION of a GPIO-driven XSMT wire
+  only if measurement shows a real pop problem.</p>
+
+  <h3 id="gain-preserve">13.5 Gain matching and preserving the other sources</h3>
+  <ul>
+    <li>Success criterion: switching TAPE↔RADIO at a fixed volume-knob
+    position produces comparable loudness (matrix 11.4).</li>
+    <li>The injection must not load or detune other sources: RADIO (and any
+    AUX) are re-verified after every audio-path change (Phase 11B step 5).</li>
+    <li>Tone controls must act on the injected signal exactly as they do on
+    radio — if they don't, the injection landed upstream/downstream of the
+    wrong stage; move it (reversibly).</li>
+  </ul>
+
+  <h2 id="power-design">14. Power design</h2>
+  <h3 id="power-method">14.1 Measured-input-first method</h3>
+  <p>No part of the power design is chosen from assumptions:
+  rail voltage, rail sag, and module current are all measured first
+  (worksheet 12.4, matrix 11.7). The buck's input range must sit comfortably
+  above the <em>highest</em> measured rail state, and its dropout must
+  clear the <em>lowest</em> (loud-radio sag on batteries is the classic
+  trap). Output is pre-set and meter-verified at 5.0&nbsp;V before the
+  module ever connects.</p>
+
+  <h3 id="fusing">14.2 Fuse placement and sizing methodology</h3>
+  <ul>
+    <li><strong>Placement:</strong> at the tap point, before the buck — the
+    fuse protects the boombox's wiring from our addition, so it sits as
+    close to the source as practical.</li>
+    <li><strong>Sizing:</strong> from measurement, not habit — take the
+    Phase 7 measured input current at the buck's input voltage (input
+    current ≈ 5&nbsp;V load ÷ input voltage ÷ efficiency), take the peak
+    (reconnect + backlight burst), add ~50% margin, round to the next
+    standard value; prefer slow-blow to ride through connect bursts.
+    Record the arithmetic in the decision log.</li>
+    <li><strong>Verify:</strong> the fuse must carry the worst-case soak
+    (matrix 11.6 in-machine) without nuisance-blowing.</li>
+  </ul>
+
+  <h3 id="power-topology">14.3 Topology, filtering, and EMI placement</h3>
+  <ul>
+    <li>Chain: switched rail → fuse → buck → (optional LC/ferrite, §9.4) →
+    the same 5&nbsp;V entry point validated in Phase 7 → DAC per its module
+    plan. One power path; no parallel taps.</li>
+    <li>Grounding follows §13.3 — power return and audio ground meet at the
+    single deliberate point; do not create a second loop through the buck
+    mounting.</li>
+    <li>Mount the buck away from the tuner coils, antenna region, and the
+    tape-preamp/injection neighborhood; the ESP32 antenna area stays clear
+    of metal (matrix 11.9 verifies the result).</li>
+    <li>Battery vs AC: if battery operation is retained, every rail number
+    is measured in both modes and the buck must behave across the union of
+    ranges; if battery operation is sacrificed, record that as an explicit
+    decision-log entry.</li>
+  </ul>
+
+  <h3 id="power-service">14.4 Serviceability rules</h3>
+  <ul>
+    <li>The tap, fuse, and buck are connectorized or otherwise removable —
+    returning the machine toward stock must not require unsoldering board
+    joints inside the Panasonic.</li>
+    <li>USB service power remains usable after installation (Phase 8 routes
+    the service cable) so firmware work never depends on the boombox
+    supply.</li>
+    <li>The motor rail is never the supply; at most it becomes a
+    FUTURE OPTION mode-sense input after its own measurement
+    campaign.</li>
+  </ul>
+
+  <h2 id="firmware">15. Firmware work breakdown (aligned to this repository)</h2>
+  <p>Firmware grows <em>inside</em> this repo's existing structure — pinned
+  ESP-IDF v6.0.2, thin <code>main/</code>, one component per concern under
+  <code>components/</code>, board specifics in exactly one place — per the
+  layout rules in <a href="setup-research.html#layout">setup research
+  §6–7</a> and <code>AGENTS.md</code>. The Phase 3 example project is a
+  bench scratch space; its learnings land here as components, not as a
+  divergent second project.</p>
+
+  <h3 id="fw-components">15.1 Components</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Planned components and their single responsibilities</caption>
+      <thead>
+        <tr><th scope="col">Component</th><th scope="col">Responsibility</th>
+        <th scope="col">Notes / gate</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>boombox_board</code></td>
+        <td>The verified pin map (§10.4) as a header + Kconfig; nothing
+        else defines pins</td>
+        <td>Created only after Phase 0 fills the verified table — the
+        existing &ldquo;no scattered <code>#define PIN_…</code>&rdquo; rule</td></tr>
+        <tr><td><code>boombox_audio</code></td>
+        <td>A2DP sink + AVRCP controller + I2S output pipeline</td>
+        <td>Ported from the Phase 3/6 example work</td></tr>
+        <tr><td><code>boombox_ui</code></td>
+        <td>ST7789 display driver setup + screen-state rendering</td>
+        <td>Gate: matrix 11.8 must stay green as it grows</td></tr>
+        <tr><td><code>boombox_input</code></td>
+        <td>Button/keys sensing, debounce, long-press semantics</td>
+        <td>Bench buttons (Phase 6) and cassette keys (Phase 13) share
+        it</td></tr>
+        <tr><td><code>boombox_settings</code></td>
+        <td>Namespaced NVS access (device name, UI prefs, pairing-reset)</td>
+        <td>No raw NVS calls at call sites (setup research §10)</td></tr>
+        <tr><td><code>main/</code></td>
+        <td>Wiring only: init order, task creation, watchdog
+        subscriptions</td>
+        <td>Stays thin per <code>AGENTS.md</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="fw-tasks">15.2 FreeRTOS task ownership (SMP, two cores)</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Planned task layout — BT stack load traditionally sits on
+      PRO_CPU; product tasks pin to APP_CPU (see chip architecture notes)</caption>
+      <thead>
+        <tr><th scope="col">Task</th><th scope="col">Core</th>
+        <th scope="col">Role &amp; rate</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>BT controller/host (stack-created)</td><td>PRO_CPU (0)</td>
+        <td>A2DP/AVRCP events; SBC decode path as the stack provides</td></tr>
+        <tr><td><code>audio_io</code></td><td>APP_CPU (1), high
+        priority</td>
+        <td>Ring-buffer drain → <code>i2s_channel_write</code>; sized so
+        display bursts never starve it</td></tr>
+        <tr><td><code>ui</code></td><td>APP_CPU (1), low priority</td>
+        <td>Event-driven redraws, capped ~10–15&nbsp;Hz; animation only
+        while matrix 11.8 stays green</td></tr>
+        <tr><td><code>input</code></td><td>APP_CPU (1), low priority</td>
+        <td>Debounce scan / GPIO ISR + queue; long-press timing</td></tr>
+        <tr><td>housekeeping (main task)</td><td>either</td>
+        <td>Watchdog subscriptions, heap logging, settings commits</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="fw-a2dp">15.3 A2DP / AVRCP state machine</h3>
+  <ul>
+    <li><strong>States:</strong> Boot → Discoverable/Waiting → Connected →
+    Streaming ⇄ Paused → Disconnected (→ auto-reconnect backoff →
+    Discoverable). Each maps to a UI screen state (Phase 5 list).</li>
+    <li><strong>Events:</strong> connection state callbacks, audio state
+    callbacks, AVRCP passthrough results, metadata notifications, button
+    commands, pairing-reset.</li>
+    <li><strong>Rules:</strong> single A2DP source at a time (stack
+    limitation — verified example note, Phase 3); metadata is optional
+    decoration, never load-bearing; bonding persists across power cycles
+    (BT stack storage in NVS) so the boombox reconnects like an appliance.</li>
+  </ul>
+
+  <h3 id="fw-i2s">15.4 I2S / DMA pipeline</h3>
+  <ul>
+    <li>v6.0.2 channel API: <code>driver/i2s_std.h</code> —
+    <code>i2s_new_channel</code> → <code>i2s_channel_init_std_mode</code> →
+    <code>i2s_channel_enable</code> → <code>i2s_channel_write</code>
+    (<span class="status status--confirmed">CONFIRMED</span> against the
+    official v6.0.2 reference; the legacy <code>driver/i2s.h</code> API is
+    not part of this IDF's documented surface — do not copy old-tutorial
+    code).</li>
+    <li>Standard (Philips) mode, 44.1&nbsp;kHz, 16-bit, stereo to match
+    A2DP SBC output; <code>I2S_CLK_SRC_APLL</code> for the accurate
+    44.1&nbsp;kHz family (the classic ESP32's Audio PLL — see
+    <a href="chip-architecture.html#i2s">chip architecture, I2S</a>).</li>
+    <li>DMA buffer count/size chosen so worst-case UI + BT bursts never
+    underrun; underruns are counted and logged, and the count must be zero
+    across matrix 11.6 soaks.</li>
+    <li>3-wire external-DAC wiring per §10; MCLK unused (PCM5102A PLL mode,
+    §13).</li>
+  </ul>
+
+  <h3 id="fw-quality">15.5 Persistence, logging, fault handling, tests</h3>
+  <ul>
+    <li><strong>Settings:</strong> <code>boombox_settings</code> namespaces
+    NVS; stored: device name, UI preferences; pairing bonds live in the BT
+    stack's own NVS storage. Pairing reset = deliberate bond erase +
+    restart, exposed only via the hidden control (Phase 6).</li>
+    <li><strong>Logging:</strong> <code>esp_log</code> with per-tag levels
+    (house rule); UART0 console stays available through the service USB
+    (§16). State transitions, reconnects, underruns, and heap watermarks
+    are logged at INFO.</li>
+    <li><strong>Fault handling:</strong> task + interrupt watchdogs stay
+    on, real tasks subscribed; BT disconnect → UI state + bounded
+    reconnect backoff; I2S write timeouts → pipeline restart with a logged
+    counter; panic behavior remains default (console dump) until the
+    partition decision adds a coredump partition
+    (<a href="setup-research.html#partitions">setup research §10</a> —
+    schedule before final install, FUTURE OPTION until then).</li>
+    <li><strong>Tests, host-first:</strong> pure logic (state machine
+    transitions, settings, debounce, level math helpers) gets host-side
+    tests via the POSIX simulator route (setup research §12); on-target
+    smoke tests per milestone (pairing, playback, soak) are recorded as
+    matrix results rather than automated for v1.</li>
+    <li><strong>Kconfig/API drift flag:</strong> every example-derived call
+    is checked against the pinned v6.0.2 tree at port time; any rename from
+    older-tutorial expectations goes in the decision log
+    (<span class="status status--conditional">CONDITIONAL</span> facts
+    stay flagged until compiled against the pin).</li>
+  </ul>
+
+  <h2 id="serviceability">16. Serviceability &amp; rollback</h2>
+  <h3 id="restore">16.1 Flash-backup restoration reference</h3>
+  <p>The factory image exists and is verified
+  (<a href="#snapshot">§4</a>). To return the board to its pre-project
+  state:</p>
+  <ol>
+    <li>Verify the backup first: <code>shasum -a 256
+    "$HOME/Library/Application Support/Boombox/backups/boombox-flash-backup-20260717-144304-16MB.bin"</code>
+    must equal the recorded
+    <code>421c15e933a66b08854675fbaa82762d52c0079de40be804d78a618a8c7a310a</code>.</li>
+    <li>Rediscover the port (<code>ls /dev/cu.*</code>), then write the
+    full image back at the reliable baud:
+    <code>esptool.py -p &lt;port&gt; -b 230400 write_flash 0x0
+    &lt;backup file&gt;</code> (write-only; no erase step — the image is
+    the full 16&nbsp;MB).</li>
+    <li>Never commit or copy the backup into the repo — it can embed NVS
+    contents/credentials (<code>AGENTS.md</code> hard rule). Keep it (and
+    a second copy on other media) outside git, path recorded in the
+    project record.</li>
+  </ol>
+  <p class="note">Restoring this image restores the <em>LILYGO factory
+  demo</em>, not Boombox firmware — it is the &ldquo;return to as-bought&rdquo;
+  path. The &ldquo;return to working Boombox&rdquo; path is a normal
+  <code>scripts/build.sh &hellip; flash</code> of a tagged release.</p>
+
+  <h3 id="service-access">16.2 Physical serviceability rules</h3>
+  <ul>
+    <li>USB service access without disassembly (cable routed in Phase 8;
+    verified at Phase 14).</li>
+    <li>Every subsystem joint — power tap, buck, DAC output, key wiring —
+    is connectorized or otherwise removable; returning toward stock never
+    requires unsoldering inside the Panasonic beyond the single reversible
+    injection point chosen in Phase 11B.</li>
+    <li>Strain relief on anything that moves with the door; labels on both
+    ends of every added wire.</li>
+    <li>Source-selection fallback: RADIO must work at every stage of the
+    project — it is the canary re-verified after each boombox phase.</li>
+    <li>No permanent alteration without a decision-log entry that names the
+    undo path; target remains <strong>zero permanent alterations</strong>.</li>
+  </ul>
+
+  <h3 id="service-label">16.3 Service label (inside the battery compartment)</h3>
+  <pre><code>RX-5235 Digital Tape Mod
+ESP32 Bluetooth A2DP -> PCM5102A DAC
+Power: switched DC rail -> fuse (___ A) -> 5 V buck
+Audio: injected at TAPE source path, not tape head
+Docs: repo docs/rx5235-build-plan.html · backup: see project record
+Date: ______   By: ______</code></pre>
+
+  <h3 id="decision-log">16.4 Decision log</h3>
+  <p>Every irreversible-leaning choice, level value, tap point, and API
+  drift finding gets a row. Keep it with the project record; the plan links
+  here from every phase that says &ldquo;record the decision.&rdquo;</p>
+  <div class="table-scroll">
+    <table>
+      <caption>Decision log template</caption>
+      <thead>
+        <tr><th scope="col">Date</th><th scope="col">Decision</th>
+        <th scope="col">Why (evidence)</th><th scope="col">Undo path</th>
+        <th scope="col">Photo/log ref</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td>
+        <td><span class="blank"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="troubleshooting">17. Troubleshooting decision tables</h2>
+  <p>Observation first: every row starts with what to <em>look at</em>
+  before anything is changed, and every fix changes one variable at a
+  time. These tables preserve and extend the source guide's table.</p>
+
+  <h3 id="ts-bt">17.1 Bluetooth &amp; pairing</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Bluetooth symptoms → observations → likely causes → fixes</caption>
+      <thead>
+        <tr><th scope="col">Symptom</th>
+        <th scope="col">Observe first (no changes yet)</th>
+        <th scope="col">Likely cause</th><th scope="col">Fix</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Phone cannot find the ESP32</td>
+        <td>Serial monitor: did the BT stack start? Is the sink app
+        running/discoverable?</td>
+        <td>App not running; BT not enabled in sdkconfig; wrong build
+        flashed</td>
+        <td>Check menuconfig BT options and the boot log; reflash the
+        known-good Phase 3 build</td></tr>
+        <tr><td>Pairs but immediately drops</td>
+        <td>Monitor for disconnect reason; phone BT settings for stale
+        bond</td>
+        <td>Stale bond on either side; RF marginal</td>
+        <td>Forget device on phone + pairing reset on module; retest at
+        close range</td></tr>
+        <tr><td>No auto-reconnect ▲</td>
+        <td>Monitor: is the module discoverable-only (bond lost)?</td>
+        <td>Bond store cleared/full; reconnect logic backoff wedged</td>
+        <td>Re-pair once; if recurring, inspect NVS bond storage and §15.3
+        backoff logic</td></tr>
+        <tr><td>Bluetooth only works with the case open ▲</td>
+        <td>Matrix 11.9 open-vs-closed comparison</td>
+        <td>Antenna area blocked by chassis metal/speaker magnet</td>
+        <td>Reposition the module so the antenna end faces plastic; re-run
+        matrix 11.9</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="ts-audio">17.2 Audio path</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>Audio symptoms → observations → likely causes → fixes</caption>
+      <thead>
+        <tr><th scope="col">Symptom</th>
+        <th scope="col">Observe first (no changes yet)</th>
+        <th scope="col">Likely cause</th><th scope="col">Fix</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Pairs but no audio</td>
+        <td>1) Does the receiving amp work with another source? 2) Does the
+        monitor show audio data flowing? 3) Is ground common?</td>
+        <td>I2S pin mismatch; DAC muted (XSMT) or wrong format (FMT); no
+        common ground</td>
+        <td>Verify BCK/LRCK/DATA against the verified map; check module
+        strap pads per Phase 2 notes; fix ground</td></tr>
+        <tr><td>One channel missing/weak ▲</td>
+        <td>Swap L/R at the amp input — does the dead side follow the
+        cable?</td>
+        <td>Broken output wire/joint; injection-side contact</td>
+        <td>Repair the side the swap implicates; re-run matrix 11.3</td></tr>
+        <tr><td>Distorted audio ▲</td>
+        <td>Does lowering phone volume clean it up? At what point?</td>
+        <td>DAC output too hot for the input it feeds</td>
+        <td>Apply/deepen §13 attenuation (measured, not guessed); keep
+        phone volume in the clean range meanwhile</td></tr>
+        <tr><td>Loud buzz/hum ▲</td>
+        <td>Does it change when touching cable dress/grounds? Present with
+        music paused?</td>
+        <td>Ground loop; bad power routing near audio</td>
+        <td>Single-point ground (§13.3); shielded run; move buck wiring
+        (§14.3)</td></tr>
+        <tr><td>High-pitched whine ▲</td>
+        <td>Does backlight level change it? Buck vs USB power
+        (matrix 11.5)?</td>
+        <td>Buck switching noise; display PWM coupling</td>
+        <td>LC/ferrite on 5&nbsp;V; relocate buck; different buck; lower
+        backlight (§9.4)</td></tr>
+        <tr><td>Audio drops when the display updates</td>
+        <td>Matrix 11.8 rows; underrun counter in the log</td>
+        <td>UI redraw starving the I2S feed</td>
+        <td>Lower frame rate / redraw scope; task priorities and DMA
+        depth per §15.2/§15.4</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="ts-system">17.3 System, flashing &amp; boombox-side</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>System symptoms → observations → likely causes → fixes</caption>
+      <thead>
+        <tr><th scope="col">Symptom</th>
+        <th scope="col">Observe first (no changes yet)</th>
+        <th scope="col">Likely cause</th><th scope="col">Fix</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>ESP32 will not boot ▲</td>
+        <td>Boot log on UART: download-mode banner? Which strap pin could
+        be held (GPIO0 button/key wiring)?</td>
+        <td>Strap pin held at reset (GPIO0/2/5/12/15) by a button, key, or
+        added wiring</td>
+        <td>Release/undo the suspect wiring; re-check the §10.2 caution
+        table before rewiring</td></tr>
+        <tr><td>Flashing fails</td>
+        <td>Cable/hub topology; baud in use; port name current?</td>
+        <td>Charge-only cable, hub in path, baud too high for this CH9102
+        (&gt;230400 unreliable — measured)</td>
+        <td>Direct data cable; <code>-b 230400</code>; rediscover port;
+        retry — the ROM bootloader always remains</td></tr>
+        <tr><td>Radio stops working after mechanism removal</td>
+        <td>The 12.6 worksheet: which contact states changed?</td>
+        <td>Record/play or tape/radio contacts left open/wrong</td>
+        <td>Restore the recorded required state reversibly (Phase 11A
+        stop rule)</td></tr>
+        <tr><td>Module resets when the boombox powers on ▲</td>
+        <td>Rail sag at switch-on (worksheet 12.4 worst-case row)</td>
+        <td>Buck input dipping below dropout at inrush</td>
+        <td>Bigger input margin per §14.1; input capacitance at the buck;
+        re-measure</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="acceptance">18. Final acceptance checklist &amp; project record</h2>
+  <h3 id="acceptance-checklist">18.1 Acceptance checklist (case closed)</h3>
+  <p>Run at Phase 14. A row passes only when its evidence field is filled
+  with an observed value/reference, not a checkmark.</p>
+  <div class="table-scroll">
+    <table>
+      <caption>Objective acceptance criteria with evidence fields</caption>
+      <thead>
+        <tr><th scope="col">Criterion</th><th scope="col">Pass?</th>
+        <th scope="col">Evidence (observed value / photo / log ref)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Boombox powers on normally (AC; battery if retained)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Radio works as before, all bands</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>TAPE position plays Bluetooth audio</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Volume/tone/balance act on Bluetooth audio</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Left/right channels correct (matrix 11.3 ▲)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Reconnect acceptable (matrix 11.1 ▲ rows)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>No loud turn-on/off pop (matrix 11.7)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>No objectionable hiss/whine/tick at normal volume
+        (matrix 11.5)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Closed-case RF range solid (matrix 11.9)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Closed-case thermal soak clean (matrix 11.6)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Case closes with no pinched wires</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Controls work closed-case; no boot hazard (Phase 13)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>USB service access works without disassembly</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Service label installed (§16.3)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        <tr><td>Module removable; restore path re-read and still valid
+        (§16.1)</td>
+        <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="project-record">18.2 Project record template</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>The permanent record kept with the machine's documentation</caption>
+      <thead>
+        <tr><th scope="col">Field</th><th scope="col">Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Machine</td><td>Panasonic RX-5235, serial:
+        <span class="blank"></span></td></tr>
+        <tr><td>Board (verified Phase 0)</td><td>LILYGO T-Display Q125
+        16&nbsp;MB — silkscreen/revision: <span class="blank"></span></td></tr>
+        <tr><td>DAC module (verified Phase 2)</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Firmware version/tag at close</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Factory backup path + SHA-256</td>
+        <td>see <a href="#snapshot">§4</a>; copies:
+        <span class="blank"></span></td></tr>
+        <tr><td>Verified pin map</td><td>§10.4 as filled, date:
+        <span class="blank"></span></td></tr>
+        <tr><td>Injection node + attenuation values</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Power tap point, measured rail, fuse value</td>
+        <td><span class="blank"></span></td></tr>
+        <tr><td>Ground join point</td><td><span class="blank"></span></td></tr>
+        <tr><td>Key → function map</td><td><span class="blank"></span></td></tr>
+        <tr><td>Photo archive location</td><td><span class="blank"></span></td></tr>
+        <tr><td>Decision log location</td><td>§16.4, kept at:
+        <span class="blank"></span></td></tr>
+        <tr><td>Dates: first opened / injected / powered / closed</td>
+        <td><span class="blank"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="sources">19. Source register</h2>
+  <p>Primary sources only, checked 2026-07-17. Claims in this plan link to
+  these inline; anything a primary source could not establish is marked
+  UNKNOWN / MEASURE in place.</p>
+  <div class="table-scroll">
+    <table>
+      <caption>What each source establishes for this plan</caption>
+      <thead>
+        <tr><th scope="col">Source</th><th scope="col">Establishes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">LILYGO
+          T-Display product page (variant 42159376466101, &ldquo;16MB
+          [Q125]&rdquo;)</a> — user-supplied</td>
+          <td>Board product identity (classic ESP32, CH9102, BT&nbsp;4.2 +
+          BLE, 16&nbsp;MB option), ST7789/ST7789V 1.14&Prime; 135&times;240
+          display, the V18 pin table (§10.1), TFT_RST listed N/A</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO/TTGO-T-Display
+          repository</a> (official)</td>
+          <td>Corroborating pin table with TFT_RST GPIO23 (the recorded
+          discrepancy), official schematic/board/3D files, factory-test
+          firmware — the Phase 0 arbiter</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/espressif/esp-idf/tree/v6.0.2/examples/bluetooth/bluedroid/classic_bt">ESP-IDF
+          v6.0.2 classic-BT example tree</a> and the
+          <code>a2dp_sink_stream</code> example README (official,
+          at the pinned tag)</td>
+          <td>Example name/path, default I2S pins BCK&nbsp;26 /
+          LRCK&nbsp;27 / DATA&nbsp;25, <code>ESP_SPEAKER</code> default
+          name, internal-DAC vs external-codec menuconfig, single-source
+          limitation, separate AVRCP examples at this version</td>
+        </tr>
+        <tr>
+          <td><a href="https://docs.espressif.com/projects/esp-idf/en/v6.0.2/esp32/api-reference/peripherals/i2s.html">ESP-IDF
+          v6.0.2 I2S driver reference</a> (official)</td>
+          <td>Channel-based <code>i2s_std</code> API surface
+          (<code>i2s_new_channel</code> /
+          <code>i2s_channel_init_std_mode</code> /
+          <code>i2s_channel_enable</code> / <code>i2s_channel_write</code>),
+          8/16/24/32-bit widths, <code>I2S_CLK_SRC_APLL</code></td>
+        </tr>
+        <tr>
+          <td><a href="https://www.ti.com/product/PCM5102A">TI PCM5102A
+          product page</a> and
+          <a href="https://www.ti.com/lit/ds/symlink/pcm5102a.pdf">datasheet</a>
+          (official)</td>
+          <td>112&nbsp;dB SNR, 2.1&nbsp;V<sub>RMS</sub> ground-centered
+          DirectPath line output (no DC-blocking caps, ≥1&nbsp;kΩ loads),
+          8–384&nbsp;kHz, 16/24/32-bit, I2S/left-justified formats,
+          internal PLL from BCK (no SCK needed), 3.3&nbsp;V analog supply;
+          datasheet: strap-pin functions (FLT, DEMP, XSMT, FMT) —
+          module-level strapping remains a Phase 2 finding</td>
+        </tr>
+        <tr>
+          <td><a href="https://www.espressif.com/documentation/esp32_datasheet_en.pdf">ESP32
+          Series Datasheet</a> via the
+          <a href="chip-architecture.html">chip architecture notes</a></td>
+          <td>Die-level constraints used in §10.2: input-only GPIOs 34–39,
+          strapping pins 0/2/5/12/15, two I2S controllers, Audio PLL,
+          internal 8-bit DAC mode on I2S0</td>
+        </tr>
+        <tr>
+          <td><a href="setup-research.html">Repo setup research</a> /
+          <a href="hardware.html">hardware notes</a> (this repo's recorded
+          measurements)</td>
+          <td>ESP-IDF v6.0.2 pin and scripts, CH9102 230400-baud limit,
+          chip/flash probes, backup evidence, smoke-flash history</td>
+        </tr>
+        <tr>
+          <td>Panasonic RX-5235 service documentation</td>
+          <td><span class="status status--unknown">UNKNOWN / MEASURE</span>
+          — no official Panasonic distribution found for this model as of
+          2026-07-17 (Panasonic's current manual portals do not carry it).
+          Aftermarket printed originals exist from used-manual sellers; if
+          one is acquired it becomes the primary source for internals.
+          Until then, every internal fact comes from the §12 worksheets,
+          never from generic repair lore.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">The source guide this plan reconciles
+  (<code>rx5235_digital_cassette_build_guide.md</code>, supplied 2026-07-17)
+  contributed the phase structure, inventories, milestone scheme,
+  troubleshooting seeds, and safety bias. Where its snapshot went stale
+  (backup/toolchain/flash already done, board identity now confirmed, the
+  example name at v6.0.2), <a href="#snapshot">§4</a> and the inline
+  version-drift warnings correct it.</p>
+</main>
+<footer>
+  <p>Boombox · local documentation · <a href="index.html">docs home</a></p>
+</footer>
+</body>
+</html>
