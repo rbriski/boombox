@@ -12,6 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "esp_app_desc.h"
 #include "esp_chip_info.h"
 #include "esp_flash.h"
 #include "esp_idf_version.h"
@@ -26,12 +27,13 @@ static const char *TAG = "boombox";
 
 void app_main(void)
 {
+    const esp_app_desc_t *app = esp_app_get_description();
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
     unsigned major_rev = chip_info.revision / 100;
     unsigned minor_rev = chip_info.revision % 100;
 
-    ESP_LOGI(TAG, "Boombox scaffold (board-neutral, console UART only)");
+    ESP_LOGI(TAG, "app: %s version %s (board-neutral, console UART only)", app->project_name, app->version);
     ESP_LOGI(TAG, "ESP-IDF: %s", esp_get_idf_version());
     ESP_LOGI(TAG, "Chip: %s, %d core(s), revision v%u.%u", CONFIG_IDF_TARGET, chip_info.cores, major_rev, minor_rev);
     ESP_LOGI(TAG, "Features:%s%s%s%s",

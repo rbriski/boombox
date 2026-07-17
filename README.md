@@ -21,6 +21,11 @@ scripts/doctor.sh                # verify environment health
 scripts/build.sh                 # idf.py build inside the pinned env
 ```
 
+pyenv/rye users: shims may keep `python3` on an older interpreter even after
+the brew install. Make a >= 3.10 interpreter resolve first for these scripts —
+e.g. `pyenv shell 3.13` (if installed), or prepend a dir whose `python3`
+symlinks to `/opt/homebrew/bin/python3.13`.
+
 `scripts/build.sh` passes arguments through to `idf.py`
 (e.g. `scripts/build.sh size`). If you already manage ESP-IDF yourself (EIM or
 a shared clone), set `BOOMBOX_IDF_PATH` to it — `doctor.sh` verifies the tag
