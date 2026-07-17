@@ -8,3 +8,21 @@
 # Gas City
 .beads/*
 !.beads/identity.toml
+.gc/
+
+# ESP-IDF build artifacts (sdkconfig is generated from sdkconfig.defaults and
+# may later hold credentials — only the .defaults seed is committed)
+build/
+sdkconfig
+sdkconfig.old
+sdkconfig.local*
+managed_components/
+
+# Secrets — never commit
+.env
+.env.*
+secrets/
+*.secrets.*
+
+# macOS noise
+.DS_Store

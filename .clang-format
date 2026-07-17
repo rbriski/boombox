@@ -1,0 +1,10 @@
+# Boombox C style: 4-space indent, 120 columns, Linux braces (functions on
+# their own line, control statements attached) — matches prevailing ESP-IDF
+# example style. Include order left manual: some IDF headers are order-sensitive.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 120
+BreakBeforeBraces: Linux
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+SortIncludes: false
