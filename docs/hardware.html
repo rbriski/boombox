@@ -14,15 +14,21 @@
     <a href="setup-research.html">Setup research</a>
     <a href="hardware.html" aria-current="page">Hardware</a>
     <a href="chip-architecture.html">Chip architecture</a>
+    <a href="rx5235-build-plan.html">RX-5235 plan</a>
   </nav>
 </header>
 <main>
   <h1>Boombox hardware notes</h1>
-  <p><span class="status">Board model: UNCONFIRMED</span></p>
-  <p class="warning"><strong>All pin-dependent work is blocked</strong> on the
-  identification checklist below.</p>
+  <p><span class="status status--confirmed">Board: LILYGO T-Display Q125
+  16&nbsp;MB (user-confirmed)</span></p>
+  <p class="warning"><strong>Pin-dependent work remains gated</strong> — not
+  on identification any more, but on the pin-assignment review: no GPIO may
+  be configured or driven until it is checked against the official Q125/V18
+  pinout, the official schematic, boot straps, header exposure, and onboard
+  functions. The review lives in the
+  <a href="rx5235-build-plan.html#wiring">build plan §10</a>.</p>
 
-  <h2 id="verified">What is verified (read-only identification, 2026-07-17)</h2>
+  <h2 id="verified">What is measured (read-only identification, 2026-07-17)</h2>
   <div class="table-scroll">
     <table>
       <caption>Device facts established without writing to the board</caption>
@@ -40,58 +46,120 @@
       </tbody>
     </table>
   </div>
-  <p>The vendor is presumed LILYGO, but USB descriptors do not identify the
-  board model, and many LILYGO (and non-LILYGO) boards combine a classic
-  ESP32 with a CH9102 bridge. <strong>We have identified the die, not the
-  board.</strong></p>
+  <p>These are <strong>measured facts about the die and flash</strong>. They
+  are deliberately recorded separately from the product identity below: the
+  measurements identify the silicon; the user-supplied official listing
+  identifies the product. Both agree on every overlapping fact.</p>
 
-  <h2 id="blocked">What the unknown blocks</h2>
-  <p>Until the model is confirmed with a pin map from an official source
-  (<a href="https://github.com/Xinyuan-LilyGO">Xinyuan-LilyGO board repos</a>,
-  <a href="https://wiki.lilygo.cc">wiki.lilygo.cc</a>), firmware must not:</p>
+  <h2 id="board">Board identity (user-confirmed, official-source-corroborated)</h2>
+  <p>The user supplied the official product listing for this board:
+  <a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">LILYGO
+  T-Display, variant 42159376466101 — &ldquo;16MB [Q125]&rdquo;, SKU Q125,
+  no shell</a>. Per that page: classic ESP32 (dual-core Xtensa LX6) with
+  Wi-Fi 802.11&nbsp;b/g/n and <strong>Bluetooth 4.2 + BLE</strong> (classic
+  Bluetooth — so the A2DP plan is sound), CH9102 serial bridge, 16&nbsp;MB
+  flash option, and a 1.14&Prime; ST7789/ST7789V IPS TFT, 135&times;240,
+  4-wire SPI, 3.3&nbsp;V. Every point corroborates the measured facts above
+  (classic ESP32 die, CH9102, Winbond 16&nbsp;MB).</p>
+  <p>What this does <em>not</em> establish: the physical PCB revision of our
+  unit beyond what the product page's &ldquo;V18&rdquo; pin table implies.
+  Photographing the silkscreen and pulling the official schematic are the
+  first open items of the
+  <a href="rx5235-build-plan.html#phase-0">build plan's Phase 0</a>.</p>
+
+  <h3 id="pinmap">Official T-Display V18 pin table</h3>
+  <p>From the product page's V18 table, corroborated by the official
+  <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO/TTGO-T-Display</a>
+  repository (which also hosts the schematic, factory-test firmware, board
+  files, and 3D files) — with one recorded discrepancy that must be resolved
+  from the schematic, not by picking a favorite:</p>
+  <div class="table-scroll">
+    <table>
+      <caption>Onboard functions and their GPIOs per the official V18 table</caption>
+      <thead>
+        <tr><th scope="col">Function</th><th scope="col">GPIO</th><th scope="col">Caution</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>TFT_MOSI</td><td>19</td><td>Display SPI — reserved</td></tr>
+        <tr><td>TFT_SCLK</td><td>18</td><td>Display SPI — reserved</td></tr>
+        <tr><td>TFT_CS</td><td>5</td><td>Reserved; GPIO5 is also a classic-ESP32 strapping pin</td></tr>
+        <tr><td>TFT_DC</td><td>16</td><td>Reserved</td></tr>
+        <tr><td>TFT_RST</td><td><strong>product page: N/A · repo README: 23</strong></td>
+        <td><span class="status status--unknown">UNKNOWN / MEASURE</span> —
+        consult the official schematic / physical revision before relying on
+        TFT reset <em>or</em> treating GPIO23 as free</td></tr>
+        <tr><td>TFT_BL (backlight)</td><td>4</td><td>Reserved</td></tr>
+        <tr><td>I2C_SDA</td><td>21</td><td>Header I2C label — only free if I2C is forgone</td></tr>
+        <tr><td>I2C_SCL</td><td>22</td><td>Header I2C label — same caveat</td></tr>
+        <tr><td>ADC_IN (battery sense)</td><td>34</td><td>Input-only pin</td></tr>
+        <tr><td>BUTTON1</td><td>35</td><td>Input-only pin, <strong>no internal pull-up</strong></td></tr>
+        <tr><td>BUTTON2</td><td>0</td><td><strong>Boot-strap pin</strong> — held low at reset = serial download mode</td></tr>
+        <tr><td>ADC power enable</td><td>14</td><td>Battery-sense circuit control</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The product page's Arduino quick-start material is reference only —
+  this project stays on native ESP-IDF v6.0.2
+  (<a href="setup-research.html#version-pin">setup research §3</a>), and its
+  4&nbsp;MB quick-start flash setting does not apply to the verified
+  16&nbsp;MB Q125 board.</p>
+  <p><strong>Candidate DAC/control pin assignments still require review</strong>
+  against the schematic, strapping pins, input-only pins, and header
+  exposure before any wiring — including the build guide's GPIO26/22/25
+  suggestion, which is <em>not</em> automatically promoted. Candidates and
+  the blank verified-assignment table live in the
+  <a href="rx5235-build-plan.html#wiring">build plan §10</a>.</p>
+
+  <h2 id="blocked">What remains gated</h2>
+  <p>Until the <a href="rx5235-build-plan.html#phase-0">Phase 0 physical
+  verify</a> and the pin review are complete, firmware must not:</p>
   <ul>
     <li>configure or drive <strong>any GPIO</strong> (display, backlight,
-    audio codec/amp, LEDs, buttons, battery-sense dividers — wrong pins can
-    fight on-board circuits);</li>
-    <li>assume PSRAM, display controller, SD slot, or battery charger
-    presence;</li>
-    <li>assume a flash layout beyond the 2&nbsp;MB-safe default build (the
-    chip's 16&nbsp;MB is confirmed, but the partition layout decision is
-    deliberate — see <a href="setup-research.html#partitions">setup research
-    §10</a>).</li>
+    audio, LEDs, buttons, battery-sense) — the scaffold app stays
+    console-UART-only;</li>
+    <li>assume PSRAM (the official listing specifies no PSRAM for this
+    product; treat as absent and confirm from the boot log when relevant),
+    SD slot, or battery-charger details beyond the official table;</li>
+    <li>assume a flash layout beyond the default build — the 16&nbsp;MB
+    partition/OTA decision remains a deliberate follow-up (see
+    <a href="setup-research.html#partitions">setup research §10</a>).</li>
   </ul>
-  <p>The scaffold app is console-UART-only for exactly this reason.</p>
 
-  <h2 id="checklist">Identification checklist (what a human must provide)</h2>
-  <p>Any one of these usually suffices; more is better:</p>
+  <h2 id="checklist">Identification checklist — resolved 2026-07-17</h2>
+  <p>The original checklist asked for silkscreen photos, module marking,
+  visible peripherals, or the product listing. <strong>Resolution: the user
+  provided the official product listing</strong> (item 4 of the original
+  list), recorded above. Remaining physical follow-ups, tracked as
+  <a href="rx5235-build-plan.html#phase-0">build plan Phase 0</a>:</p>
   <ol>
-    <li><strong>Silkscreen text</strong> on the PCB, both sides — LILYGO
-    prints the product name and revision (e.g. <code>T-Display V1.1</code>,
-    <code>T8 V1.7</code>, <code>T-Energy</code>, <code>TTGO T-Koala</code>).
-    Photograph front and back.</li>
-    <li><strong>Module vs bare chip</strong>: is the ESP32 under a shielded
-    module can (marking like <code>ESP32-WROOM-32E</code> /
-    <code>WROVER-E</code>) or a bare QFN chip on the PCB? Photograph the
-    marking.</li>
-    <li><strong>Peripherals visible</strong>: display (size/ribbon marking),
-    speaker/amp, battery connector (JST), SD slot, buttons count, antenna
-    type.</li>
-    <li>Optionally, the <strong>product listing / order page</strong> it was
-    purchased from.</li>
+    <li>Photograph both sides of the PCB; record the silkscreen text and any
+    revision marking.</li>
+    <li>Fetch the official schematic from the
+    <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO
+    repository</a>; resolve the TFT_RST discrepancy.</li>
+    <li>Confirm which GPIOs the physical headers actually expose.</li>
   </ol>
-  <p>Record findings here when known: board model = ______, board revision =
-  ______, official repo/wiki page = ______.</p>
+  <p>Record: board model = <strong>LILYGO T-Display (classic ESP32)</strong>,
+  variant = <strong>Q125, 16&nbsp;MB, no shell</strong>, official pages =
+  <a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">product
+  listing</a> +
+  <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">repository</a>;
+  physical revision = ______ (pending Phase 0 photos).</p>
 
   <h2 id="safety">Safe-workflow rules for this device</h2>
   <ul>
     <li>Flashing is always an explicit human command — never a side effect of
     build or test tooling.</li>
-    <li>The first flash <strong>overwrites the factory demo firmware</strong>.
-    Do it only deliberately, with a full flash backup taken first.</li>
-    <li>Before any write: back up the entire flash to
-    <code>~/Library/Application Support/Boombox/backups/</code> (timestamped,
-    outside the repo) and record path, size, and SHA-256. Never commit the
-    binary — it can embed NVS contents and credentials.</li>
+    <li>The factory demo firmware has already been overwritten (deliberately,
+    after a full backup — see the
+    <a href="rx5235-build-plan.html#snapshot">build plan's current-state
+    snapshot</a>). The full pre-write backup is preserved with path, size,
+    and SHA-256 recorded; the restore procedure is in the
+    <a href="rx5235-build-plan.html#restore">build plan §16</a>.</li>
+    <li>Before any session's first flash-writing operation: confirm the
+    recorded backup still verifies (<code>shasum -a 256</code> against the
+    recorded hash). Never commit the binary — it can embed NVS contents and
+    credentials.</li>
     <li>No bulk erase (<code>erase-flash</code>) without explicit per-session
     user approval.</li>
     <li>Read-only probes are safe and preferred:
@@ -109,7 +177,9 @@
     <li>Bulk serial transfers on this CH9102 bridge are unreliable above
     230400 baud (read-flash attempts at 921600 and 460800 both aborted with
     packet corruption; 230400 is stable). Prefer <code>-b 230400</code> for
-    long reads.</li>
+    long reads and large writes.</li>
+    <li>The serial port name is an observation, not a constant — rediscover
+    it each session with <code>ls /dev/cu.*</code>.</li>
   </ul>
 </main>
 <footer>

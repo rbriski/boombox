@@ -14,6 +14,7 @@
     <a href="setup-research.html">Setup research</a>
     <a href="hardware.html">Hardware</a>
     <a href="chip-architecture.html" aria-current="page">Chip architecture</a>
+    <a href="rx5235-build-plan.html">RX-5235 plan</a>
   </nav>
 </header>
 <main>
@@ -33,6 +34,7 @@
   (Table 1-1), <code>ESP32-D0WDQ6-V3</code> means:</p>
   <div class="table-scroll">
     <table>
+      <caption>ESP32-D0WDQ6-V3 part-number fields, decoded</caption>
       <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>D</code></td><td>Dual-core</td></tr>
@@ -75,6 +77,7 @@
   <p>Internal (datasheet §4.1.2, memory map Table 4-1):</p>
   <div class="table-scroll">
     <table>
+      <caption>On-die memory inventory</caption>
       <thead><tr><th scope="col">Memory</th><th scope="col">Size</th><th scope="col">Notes</th></tr></thead>
       <tbody>
         <tr><td>ROM</td><td>448 KB (384 + 64)</td><td>Mask ROM: first-stage boot + core routines</td></tr>
@@ -104,8 +107,9 @@
     <a href="hardware.html#verified">hardware notes</a>) — external to this
     no-in-package-flash variant.</li>
     <li>Up to <strong>8 MB external PSRAM</strong> supported (4 MB mapped at
-    a time). Whether this board has any is <strong>unknown</strong>
-    (carrier-board question).</li>
+    a time). The confirmed carrier (LILYGO T-Display Q125 — see
+    <a href="hardware.html#board">hardware notes</a>) lists <strong>no
+    PSRAM</strong>; treat it as absent.</li>
     <li><strong>Cache</strong>: each CPU has a 32 KB two-way set-associative
     cache, 32-byte lines. Flash code/rodata access goes through it;
     cache-miss latency is why hot paths and flash-write-concurrent code use
@@ -225,13 +229,17 @@
   facts: silicon revision v3.1, 40 MHz crystal, CH9102 USB bridge, 16 MB
   Winbond flash, MAC <code>a4:f0:0f:d9:71:b8</code>, and a working UART0
   console.</p>
-  <p>Everything else — which GPIOs reach connectors, display/codec/amplifier
-  presence and wiring, battery circuitry, PSRAM, buttons, LEDs — is
-  <strong>carrier-board territory and unknown</strong> until the LILYGO model
-  is identified (checklist in the <a href="hardware.html#checklist">hardware
-  notes</a>). Firmware must not cross this boundary: no GPIO configuration,
-  no peripheral bring-up beyond UART0, no partition-layout changes, until the
-  hardware notes record a verified model + pin map.</p>
+  <p>Everything else — which GPIOs reach connectors, display wiring, battery
+  circuitry, buttons — is <strong>carrier-board territory</strong>. The
+  carrier is now identified (user-confirmed LILYGO T-Display Q125 16&nbsp;MB;
+  official V18 pin table recorded in the
+  <a href="hardware.html#board">hardware notes</a>), which narrows the
+  boundary but does not remove it: one pin is disputed between official
+  sources (TFT_RST), and header exposure on our physical unit is
+  unverified. Firmware still must not cross the boundary — no GPIO
+  configuration, no peripheral bring-up beyond UART0, no partition-layout
+  changes — until the <a href="rx5235-build-plan.html#wiring">build plan §10
+  pin review</a> fills the verified assignment table.</p>
 
   <h2 id="references">Deep-dive references</h2>
   <ul>

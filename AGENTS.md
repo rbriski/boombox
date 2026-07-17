@@ -4,12 +4,17 @@ Operational ground rules and canonical commands for agents (and humans)
 working in this repo. Background and rationale live in
 [`docs/setup-research.html`](docs/setup-research.html); device status in
 [`docs/hardware.html`](docs/hardware.html); SoC details in
-[`docs/chip-architecture.html`](docs/chip-architecture.html).
+[`docs/chip-architecture.html`](docs/chip-architecture.html); the RX-5235
+build/integration plan in
+[`docs/rx5235-build-plan.html`](docs/rx5235-build-plan.html).
 
 ## Facts you may rely on
 
 - Target: **classic ESP32** (`esp32`), chip ESP32-D0WDQ6-V3 rev 3.1, external
-  SPI flash, CH9102 USB bridge. The **LILYGO board model is unconfirmed**.
+  SPI flash (16 MB Winbond), CH9102 USB bridge. Board identity is
+  **user-confirmed: LILYGO T-Display Q125 16 MB** (official listing + V18
+  pin table recorded in `docs/hardware.html`); the physical
+  silkscreen/revision photo and the schematic pin review are still pending.
 - Toolchain: **native ESP-IDF**, version pinned in [`.espidf-version`](.espidf-version).
   All scripts read that file; CI mirrors it in `.github/workflows/ci.yml`.
 - No git remote exists; work lands on **local `main`**. Do not create or
@@ -67,11 +72,14 @@ scripts/build.sh -p /dev/cu.usbserial-XXXX flash monitor   # deliberate flash+mo
 
 The attached device is the only unit we have. In order:
 
-1. **Never invent a pin map.** Do not write board-specific GPIO, display,
-   audio/amplifier, or battery/power code until the exact LILYGO model and
-   pinout are confirmed from an official source and recorded in
-   `docs/hardware.html`. Board-neutral means: console UART only, zero GPIO
-   configuration.
+1. **Never use an unverified pin.** The board identity is confirmed and the
+   official V18 pin table is recorded in `docs/hardware.html`, but do not
+   write board-specific GPIO, display, audio/amplifier, or battery/power
+   code until that specific pin assignment has been checked against the
+   official Q125/V18 pinout, the official schematic, boot straps, header
+   exposure, and onboard functions, and recorded in the verified table
+   (`docs/rx5235-build-plan.html` §10). Until then, board-neutral means:
+   console UART only, zero GPIO configuration.
 2. **Back up before writing.** Before the first write of a session that
    changes flash contents, take (or confirm) a full flash backup to
    `~/Library/Application Support/Boombox/backups/` (timestamped, outside the

@@ -14,14 +14,16 @@
     <a href="setup-research.html" aria-current="page">Setup research</a>
     <a href="hardware.html">Hardware</a>
     <a href="chip-architecture.html">Chip architecture</a>
+    <a href="rx5235-build-plan.html">RX-5235 plan</a>
   </nav>
 </header>
 <main>
   <h1>Boombox — ESP32 toolchain &amp; project setup research</h1>
   <p><strong>Date:</strong> 2026-07-17 ·
   <span class="status">Accepted: framework + version pin</span> ·
-  <strong>Scope:</strong> classic ESP32 (LILYGO board, exact model
-  unconfirmed)</p>
+  <strong>Scope:</strong> classic ESP32 (LILYGO T-Display Q125 —
+  identity user-confirmed since; see
+  <a href="hardware.html#board">hardware notes</a>)</p>
   <p class="lede">This document records the research behind Boombox's initial
   toolchain choice, the version-pinning policy, and the practices the
   scaffold encodes. Sources are official/primary only and listed inline plus
@@ -32,6 +34,7 @@
   was created:</p>
   <div class="table-scroll">
     <table>
+      <caption>Facts established read-only before the scaffold existed</caption>
       <thead><tr><th scope="col">Fact</th><th scope="col">Value</th></tr></thead>
       <tbody>
         <tr><td>Serial port (macOS)</td><td><code>/dev/cu.usbserial-5B1F0057851</code></td></tr>
@@ -49,11 +52,14 @@
   board. <em>Update 2026-07-17:</em> a later read-only probe confirmed
   <strong>16 MB Winbond flash</strong> (see
   <a href="hardware.html#verified">hardware notes</a>). The USB descriptors
-  do <strong>not</strong> identify the LILYGO board model. Everything
-  pin-related (display, audio, battery sense, buttons) is therefore out of
-  scope until the board is identified — see the
-  <a href="hardware.html#checklist">identification checklist</a> and the
-  constraints the scaffold honors meanwhile.</p>
+  do <strong>not</strong> identify the LILYGO board model. <em>Update
+  2026-07-17:</em> the board identity is now user-confirmed via the official
+  product listing — LILYGO T-Display Q125 16&nbsp;MB (see
+  <a href="hardware.html#board">hardware notes</a>). Everything pin-related
+  (display, audio, battery sense, buttons) remains out of scope until the
+  <a href="rx5235-build-plan.html#wiring">build plan §10 pin review</a>
+  (schematic, straps, header exposure) completes — the constraint the
+  scaffold honors meanwhile.</p>
 
   <h2 id="framework-choice">2. Framework choice</h2>
   <p>Three maintainable paths were compared, using only official project
@@ -207,6 +213,7 @@
   env sane</em> — in three commands:</p>
   <div class="table-scroll">
     <table>
+      <caption>The scaffold's three wrapper commands</caption>
       <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
       <tbody>
         <tr><td><code>scripts/bootstrap.sh</code></td><td>One-time: clone ESP-IDF at the pinned tag, run its tool installer for <code>esp32</code></td></tr>
@@ -241,10 +248,11 @@ scripts/                 # bootstrap / doctor / build</code></pre>
   <p>The scaffold is <strong>board-neutral</strong>:
   <code>sdkconfig.defaults</code> pins only
   <code>CONFIG_IDF_TARGET="esp32"</code> and the app touches no GPIO — it
-  uses just the default console UART through the USB bridge. Once the
-  physical board is identified
-  (<a href="hardware.html#checklist">checklist</a>), board specifics enter
-  as:</p>
+  uses just the default console UART through the USB bridge. Now that the
+  board identity is confirmed
+  (<a href="hardware.html#board">hardware notes</a>), board specifics enter
+  — after the <a href="rx5235-build-plan.html#wiring">build plan §10 pin
+  review</a> — as:</p>
   <ol>
     <li>a <code>components/boombox_board/</code> component exposing a pin-map
     header + Kconfig options (display/audio/battery rails), and</li>
@@ -377,17 +385,19 @@ scripts/                 # bootstrap / doctor / build</code></pre>
 
   <h2 id="open-items">16. Open items (ordered)</h2>
   <ol>
-    <li><strong>Identify the board</strong> — photos/silkscreen per the
-    <a href="hardware.html#checklist">checklist</a>; this gates all pin
-    work.</li>
+    <li><strong>Physically verify the board</strong> — the identity is
+    user-confirmed (T-Display Q125); photos/silkscreen + the schematic pin
+    review remain, per <a href="rx5235-build-plan.html#phase-0">build plan
+    Phase 0</a> and <a href="rx5235-build-plan.html#wiring">§10</a>; this
+    gates all pin work.</li>
     <li>Partition/OTA layout decision for the confirmed 16 MB flash
     (<a href="#partitions">§10</a>) + coredump partition
     (<a href="#logging">§9</a>).</li>
-    <li>Board component + pin map; then display/audio/battery bring-up per
-    the identified model, using the matching
-    <a href="https://github.com/Xinyuan-LilyGO">Xinyuan-LilyGO</a> board repo
-    and <a href="https://wiki.lilygo.cc">wiki.lilygo.cc</a> as pin-map
-    sources.</li>
+    <li>Board component + pin map; then display/audio bring-up per the
+    <a href="rx5235-build-plan.html#firmware">build plan's firmware
+    breakdown</a>, using the official
+    <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">TTGO-T-Display
+    repository</a> (schematic) as the pin-map arbiter.</li>
     <li>Host-test harness for the first pure-logic component
     (<a href="#testing">§12</a>).</li>
   </ol>

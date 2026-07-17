@@ -1,11 +1,16 @@
 # Boombox
 
-Firmware for a LILYGO ESP32 device. The chip is identified
+Firmware for a LILYGO T-Display (classic ESP32) — the future "Digital Tape"
+module of a Panasonic RX-5235 boombox. The chip is measured
 (ESP32-D0WDQ6-V3 rev 3.1, dual-core 240 MHz, 16 MB external flash,
-CH9102 USB bridge at `/dev/cu.usbserial-5B1F0057851`); the **board model is
-not yet confirmed**, so the firmware is deliberately board-neutral — console
-UART only, no GPIO — until the identification checklist in
-[`docs/hardware.html`](docs/hardware.html) is completed.
+CH9102 USB bridge at `/dev/cu.usbserial-5B1F0057851`) and the board identity
+is **user-confirmed: LILYGO T-Display Q125 16 MB** via the official product
+listing recorded in [`docs/hardware.html`](docs/hardware.html). The firmware
+stays deliberately board-neutral — console UART only, no GPIO — until each
+pin assignment is verified against the official Q125/V18 pinout, schematic,
+boot straps, header exposure, and onboard functions. The full build and
+integration plan lives in
+[`docs/rx5235-build-plan.html`](docs/rx5235-build-plan.html).
 
 Toolchain: **native ESP-IDF, pinned at the tag in [`.espidf-version`](.espidf-version)**
 (currently v6.0.2). Why ESP-IDF over PlatformIO/Arduino, and every other setup
@@ -59,7 +64,10 @@ sdkconfig.defaults  committed config seed (target only; generated sdkconfig is g
 - The ESP-IDF pin changes only via a deliberate commit updating
   `.espidf-version` **and** the mirrored version in
   `.github/workflows/ci.yml` together.
-- No GPIO configuration until the board is identified (`docs/hardware.html`).
+- No GPIO configuration until that pin is verified against the official
+  Q125/V18 pinout, schematic, boot straps, header exposure, and onboard
+  functions (`docs/hardware.html`; verified table in
+  `docs/rx5235-build-plan.html` §10).
 - Secrets never enter git: `sdkconfig` is generated and gitignored; commit
   only a clean `sdkconfig.defaults`. Runtime secrets go to NVS.
 - Format C code with `clang-format` (config committed); keep warnings at zero.
