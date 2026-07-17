@@ -1,0 +1,21 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Builds in the official espressif/idf container. esp_idf_version must
+      # stay in sync with .espidf-version at the repo root.
+      - name: Build (ESP-IDF, target esp32)
+        uses: espressif/esp-idf-ci-action@v1.2.0
+        with:
+          esp_idf_version: v6.0.2
+          target: esp32
+          path: '.'
