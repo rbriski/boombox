@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toolchain &amp; setup research — Boombox</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <p class="brand"><a href="index.html">Boombox docs</a></p>
+  <nav aria-label="Documentation">
+    <a href="index.html">Index</a>
+    <a href="setup-research.html" aria-current="page">Setup research</a>
+    <a href="hardware.html">Hardware</a>
+    <a href="chip-architecture.html">Chip architecture</a>
+  </nav>
+</header>
+<main>
+  <h1>Boombox — ESP32 toolchain &amp; project setup research</h1>
+  <p><strong>Date:</strong> 2026-07-17 ·
+  <span class="status">Accepted: framework + version pin</span> ·
+  <strong>Scope:</strong> classic ESP32 (LILYGO board, exact model
+  unconfirmed)</p>
+  <p class="lede">This document records the research behind Boombox's initial
+  toolchain choice, the version-pinning policy, and the practices the
+  scaffold encodes. Sources are official/primary only and listed inline plus
+  in <a href="#sources">Sources</a>.</p>
+
+  <h2 id="hardware-context">1. Hardware context (what we actually know)</h2>
+  <p>Established safely with <code>esptool</code> 5.3.1 before this scaffold
+  was created:</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">Fact</th><th scope="col">Value</th></tr></thead>
+      <tbody>
+        <tr><td>Serial port (macOS)</td><td><code>/dev/cu.usbserial-5B1F0057851</code></td></tr>
+        <tr><td>USB bridge</td><td>WCH, VID:PID <code>1a86:55d4</code> (CH9102 family)</td></tr>
+        <tr><td>Chip</td><td>ESP32-D0WDQ6-V3, revision 3.1</td></tr>
+        <tr><td>Cores / clock</td><td>Dual-core Xtensa LX6, 240 MHz</td></tr>
+        <tr><td>Crystal</td><td>40 MHz</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Per the
+  <a href="https://www.espressif.com/documentation/esp32_datasheet_en.pdf">ESP32
+  datasheet</a>, the D0WDQ6 variant is dual-core in a QFN 6×6 package with
+  <strong>no embedded flash</strong> — flash is an external SPI chip on the
+  board. <em>Update 2026-07-17:</em> a later read-only probe confirmed
+  <strong>16 MB Winbond flash</strong> (see
+  <a href="hardware.html#verified">hardware notes</a>). The USB descriptors
+  do <strong>not</strong> identify the LILYGO board model. Everything
+  pin-related (display, audio, battery sense, buttons) is therefore out of
+  scope until the board is identified — see the
+  <a href="hardware.html#checklist">identification checklist</a> and the
+  constraints the scaffold honors meanwhile.</p>
+
+  <h2 id="framework-choice">2. Framework choice</h2>
+  <p>Three maintainable paths were compared, using only official project
+  sources.</p>
+
+  <h3 id="native-esp-idf">2.1 Native ESP-IDF (chosen)</h3>
+  <p>ESP-IDF is Espressif's first-party framework. As of July 2026 the
+  current stable release is <strong>v6.0.2</strong>, with classic ESP32 fully
+  supported
+  (<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/versions.html">versions
+  page</a>,
+  <a href="https://github.com/espressif/esp-idf/releases">releases</a>).
+  Espressif's guidance for new projects is to use the latest stable
+  (&ldquo;In Service&rdquo;) release, and each minor release is supported for
+  30 months (12 months service + 18 months maintenance) per the
+  <a href="https://github.com/espressif/esp-idf/blob/master/SUPPORT_POLICY.md">support
+  policy</a>.</p>
+  <ul>
+    <li>First-party: chip support, bugfixes, and security patches land here
+    first.</li>
+    <li>Full control of <code>sdkconfig</code>, partition tables, and the
+    CMake build.</li>
+    <li>Official CI story
+    (<a href="https://github.com/espressif/esp-idf-ci-action">esp-idf-ci-action</a>
+    wrapping the <code>espressif/idf</code> Docker image) and official
+    host-testing story
+    (<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/host-apps.html">POSIX/Linux
+    simulator</a>).</li>
+    <li>Dependency management with lockfiles via the
+    <a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/tools/idf-component-manager.html">IDF
+    Component Manager</a> and
+    <a href="https://components.espressif.com">components.espressif.com</a>.</li>
+    <li>Cost: steeper API than Arduino; C-first idioms; more boilerplate for
+    quick experiments.</li>
+  </ul>
+
+  <h3 id="platformio">2.2 PlatformIO + ESP-IDF (rejected)</h3>
+  <p>PlatformIO's build of ESP-IDF rides the
+  <code>platform-espressif32</code> platform. Espressif discontinued its
+  support of that platform: the official platform never adopted Arduino core
+  3.x / newer IDF lines
+  (<a href="https://github.com/platformio/platform-espressif32/issues/1225">platformio/platform-espressif32#1225</a>,
+  <a href="https://github.com/espressif/arduino-esp32/discussions/10039">arduino-esp32
+  discussion #10039</a>). Current support continues in the community
+  <a href="https://github.com/pioarduino/platform-espressif32">pioarduino
+  fork</a>, which is capable but small-team and unofficial. Building a new
+  long-lived project on a vendor-abandoned integration layer — with the fork
+  as load-bearing infrastructure — is an avoidable risk. PIO's IDE ergonomics
+  don't outweigh it.</p>
+
+  <h3 id="arduino">2.3 Arduino-ESP32 (standalone or via PlatformIO) (rejected as default)</h3>
+  <p>The official
+  <a href="https://github.com/espressif/arduino-esp32/releases">arduino-esp32
+  core</a> is at <strong>v3.3.x</strong>, built on <strong>ESP-IDF
+  v5.5.x</strong>; the IDF-6-based <strong>v4.0.0 is alpha</strong>. So the
+  Arduino path trails IDF stable by a major version, and pairing it with
+  PlatformIO re-imports the fork problem above. The Arduino API is great for
+  prototyping, and it remains available to us <em>later</em> as an IDF
+  component if we ever want Arduino libraries — without inverting the project
+  structure.</p>
+  <p class="note"><strong>Decision: native ESP-IDF.</strong> Best-supported,
+  first-party, and the only option where version pinning, CI, testing, and
+  dependency locking are all official.</p>
+
+  <h2 id="version-pin">3. Version pin &amp; upgrade policy</h2>
+  <p><strong>Pinned: ESP-IDF <code>v6.0.2</code></strong> — recorded in
+  <code>.espidf-version</code>, consumed by
+  <code>scripts/bootstrap.sh</code> / <code>scripts/doctor.sh</code> /
+  <code>scripts/build.sh</code>, and mirrored in
+  <code>.github/workflows/ci.yml</code> (comment there points back at the pin
+  file).</p>
+  <p>Why v6.0.2 and not v5.5.x:</p>
+  <ul>
+    <li>Espressif recommends the <strong>latest stable</strong> for new
+    projects
+    (<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/versions.html">versions</a>).</li>
+    <li>The
+    <a href="https://github.com/espressif/esp-idf/blob/master/ROADMAP.md">roadmap</a>
+    moves <code>release/5.5</code> into its maintenance period
+    <strong>July 2026</strong> (now), while <code>release/6.0</code> has an
+    active 2026 bugfix cadence (v6.0.3 ~Sep, v6.0.4 ~Nov) and v6.1/v6.2
+    follow later in 2026.</li>
+    <li>Starting on 5.5 would mean adopting a branch already leaving service
+    and scheduling a 5.x→6.x migration for later; starting on 6.0 buys the
+    longest runway with no migration debt.</li>
+  </ul>
+  <p><strong>Policy:</strong> bump the pin deliberately (edit
+  <code>.espidf-version</code> + the CI mirror in one commit), preferring
+  bugfix releases on <code>release/6.0</code> as they appear; evaluate v6.1
+  once stable. Never track <code>master</code> or a moving branch. The Docker
+  image used in CI (<code>espressif/idf:v6.0.2</code>) pins the same tag, so
+  CI and local builds agree.</p>
+
+  <h2 id="macos-setup">4. macOS setup (this dev machine)</h2>
+  <p>Per the official
+  <a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/macos-setup.html">macOS
+  setup guide</a>:</p>
+  <ul>
+    <li><strong>Python ≥ 3.10 is required.</strong> The machine's system
+    Python is 3.9.5, so Homebrew <code>python</code> is needed
+    (<code>scripts/doctor.sh</code> checks this). Note: pyenv/rye shims may
+    keep <code>python3</code> on an older interpreter even after a brew
+    install — make a ≥ 3.10 interpreter resolve first (see README
+    quickstart).</li>
+    <li>Homebrew prerequisites (official list): <code>libgcrypt glib pixman
+    sdl2 libslirp dfu-util cmake python</code> — the first five exist for the
+    QEMU simulator; the hard core for building is <code>cmake</code> +
+    <code>python</code> (Ninja and the Xtensa toolchain are provisioned by
+    ESP-IDF's own tool installer into <code>~/.espressif</code>).</li>
+    <li><strong>Official recommended installer is now EIM</strong> (Espressif
+    Installation Manager): <code>brew tap espressif/eim &amp;&amp; brew
+    install eim</code>, then <code>eim install -i &lt;version&gt;</code> for
+    a pinned install.</li>
+  </ul>
+  <p><strong>What our scripts do:</strong> <code>scripts/bootstrap.sh</code>
+  uses the classic, fully scriptable flow — <code>git clone -b v6.0.2
+  --recursive</code> into a version-suffixed directory plus
+  <code>install.sh esp32</code> — because it is deterministic,
+  non-interactive, and byte-for-byte the same mechanism the official CI
+  Docker image uses. EIM is a fine interactive alternative; if you already
+  manage IDF with EIM, point <code>BOOMBOX_IDF_PATH</code> at that install
+  and <code>doctor.sh</code> will verify the tag matches the pin.</p>
+
+  <h3 id="serial">Serial port &amp; the WCH bridge</h3>
+  <ul>
+    <li>Port discovery on macOS is <code>ls /dev/cu.*</code>
+    (<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/establish-serial-connection.html">establish
+    serial connection</a>).</li>
+    <li>On this machine the CH9102 already enumerates as
+    <code>/dev/cu.usbserial-5B1F0057851</code> with <strong>no extra
+    driver</strong> — current IDF docs note bridge drivers are normally
+    bundled with the OS. If a fresh macOS machine does <em>not</em> enumerate
+    the port, WCH's official driver
+    (<a href="https://github.com/WCHSoftGroup/ch34xser_macos">WCHSoftGroup/ch34xser_macos</a>)
+    covers CH9101/CH9102 on macOS 10.9→11+ (port then appears as
+    <code>/dev/*wchusbserial*</code>).</li>
+    <li>No <code>dialout</code>-style group permissions exist on macOS;
+    serial devices are user-accessible by default (unlike Linux, where the
+    user must join <code>dialout</code>/<code>uucp</code>).</li>
+    <li><em>Measured on this bridge:</em> bulk transfers above 230400 baud
+    are unreliable (read-flash aborted at 921600 and 460800 with packet
+    corruption; stable at 230400). Details in the
+    <a href="hardware.html#safety">hardware safety rules</a>.</li>
+  </ul>
+
+  <h2 id="ergonomics">5. Build / flash / monitor ergonomics</h2>
+  <p>Everything flows through <code>idf.py</code> once the environment is
+  exported
+  (<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/index.html">get-started</a>).
+  The scaffold wraps the two fiddly parts — <em>which IDF</em> and <em>is my
+  env sane</em> — in three commands:</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>scripts/bootstrap.sh</code></td><td>One-time: clone ESP-IDF at the pinned tag, run its tool installer for <code>esp32</code></td></tr>
+        <tr><td><code>scripts/doctor.sh</code></td><td>Verify host prerequisites, pinned IDF presence/tag, serial port visibility</td></tr>
+        <tr><td><code>scripts/build.sh</code></td><td>Source the pinned env, run <code>idf.py build</code> (extra args pass through, e.g. <code>scripts/build.sh size</code>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Flash/monitor remain explicit, deliberate actions
+  (<code>scripts/build.sh -p /dev/cu.usbserial-5B1F0057851 flash
+  monitor</code>) — see the safety rules in
+  <a href="#safe-workflows">§11</a> and in the
+  <a href="hardware.html#safety">hardware notes</a> before the first flash.
+  Monitor exit is <kbd>Ctrl-]</kbd>.</p>
+
+  <h2 id="layout">6. Project layout</h2>
+  <p>Standard idf.py project shape (build system docs), kept minimal until
+  the board is identified:</p>
+  <pre><code>CMakeLists.txt           # project entry (standard ESP-IDF template)
+sdkconfig.defaults       # committed config seed: pins IDF_TARGET=esp32
+main/                    # the app component
+  CMakeLists.txt
+  boombox_main.c         # board-neutral serial hello-world + heartbeat
+components/              # (future) project-local components, one per concern
+docs/                    # research + hardware notes (this site)
+scripts/                 # bootstrap / doctor / build</code></pre>
+  <p>Growth rule: new functionality lands as small components under
+  <code>components/</code> (or as managed dependencies), not as accretion
+  onto <code>main/</code>.</p>
+
+  <h2 id="board-config">7. Board configuration strategy</h2>
+  <p>The scaffold is <strong>board-neutral</strong>:
+  <code>sdkconfig.defaults</code> pins only
+  <code>CONFIG_IDF_TARGET="esp32"</code> and the app touches no GPIO — it
+  uses just the default console UART through the USB bridge. Once the
+  physical board is identified
+  (<a href="hardware.html#checklist">checklist</a>), board specifics enter
+  as:</p>
+  <ol>
+    <li>a <code>components/boombox_board/</code> component exposing a pin-map
+    header + Kconfig options (display/audio/battery rails), and</li>
+    <li>additions to <code>sdkconfig.defaults</code> gated on that
+    identification.</li>
+  </ol>
+  <p>Do <strong>not</strong> scatter <code>#define PIN_…</code> through app
+  code; the board component is the single seam.</p>
+
+  <h2 id="secrets">8. Secrets</h2>
+  <ul>
+    <li><code>sdkconfig</code> (generated, may embed Wi-Fi credentials etc.
+    later) is <strong>gitignored</strong>; only
+    <code>sdkconfig.defaults</code> is committed and must stay
+    secret-free.</li>
+    <li>Local-only overrides belong in
+    <code>sdkconfig.local.defaults</code>-style files or environment
+    injection at provisioning time; runtime secrets belong in NVS (with NVS
+    encryption + flash encryption as the eventual production posture — decide
+    alongside the OTA/partition work in <a href="#partitions">§10</a>).</li>
+    <li><code>.gitignore</code> also blocks
+    <code>secrets*</code>/<code>.env*</code> patterns preemptively.</li>
+  </ul>
+
+  <h2 id="logging">9. Logging, watchdog, crash diagnostics</h2>
+  <ul>
+    <li>Use <code>esp_log</code> (<code>ESP_LOGI/W/E</code> + per-tag levels)
+    from day one — the scaffold does; no bare <code>printf</code> beyond the
+    banner.</li>
+    <li>IDF defaults keep the <strong>task watchdog</strong> on the idle
+    tasks and panic output on the console — leave them on. When the product
+    loop exists, feed/subscribe real tasks explicitly.</li>
+    <li>Now that flash size is confirmed (16 MB), add a <strong>coredump
+    partition</strong> (<code>ESP_COREDUMP_ENABLE_TO_FLASH</code>) so field
+    crashes are recoverable — folded into the <a href="#partitions">§10</a>
+    partition decision.</li>
+  </ul>
+
+  <h2 id="partitions">10. Partitions, NVS, OTA</h2>
+  <p>Deferred deliberately at scaffold time because flash size was unknown.
+  <em>Update 2026-07-17:</em> a read-only <code>esptool flash-id</code> probe
+  confirmed <strong>16 MB</strong> (see
+  <a href="hardware.html#verified">hardware notes</a>), so the layout
+  decision is now unblocked — but it remains a deliberate follow-up, not an
+  accident of the scaffold:</p>
+  <ul>
+    <li>The build currently uses the default single-factory-app partition
+    table (safe on any supported flash size).</li>
+    <li>With 16 MB confirmed, the natural next layout is two OTA app slots +
+    otadata + NVS + coredump, sized generously.</li>
+    <li>NVS is the settings store either way; introduce a namespaced settings
+    module rather than raw NVS calls at call sites.</li>
+  </ul>
+
+  <h2 id="safe-workflows">11. Safe hardware workflows</h2>
+  <p>Ground rules encoded in docs and honored by the scaffold:</p>
+  <ol>
+    <li><strong>The scaffolding task did not flash or erase the
+    device</strong>, and nothing here does so automatically — flashing is
+    always an explicit human command.</li>
+    <li>First flash <strong>erases the factory demo firmware</strong> LILYGO
+    ships; do it only after a full flash backup, deliberately.</li>
+    <li>Never configure or drive a GPIO you can't name from a verified pin
+    map — unknown pins can fight on-board circuits (display rails, battery
+    management). Board-neutral firmware = console UART only.</li>
+    <li>Read-only probes (<code>flash-id</code>, MAC read,
+    <code>read-flash</code> to a file) are safe and preferred; results are
+    recorded in the <a href="hardware.html#verified">hardware notes</a>.</li>
+    <li>Keep the device on a data-capable cable directly attached (no hubs)
+    when flashing; if a flash is interrupted, the ROM serial bootloader
+    remains — recovery is re-running the flash, not panic.</li>
+  </ol>
+
+  <h2 id="testing">12. Testing strategy</h2>
+  <ul>
+    <li><strong>Host-first for logic:</strong> ESP-IDF v6.0 supports running
+    components/apps on the host via the FreeRTOS <strong>POSIX/Linux
+    simulator</strong>
+    (<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/host-apps.html">host
+    apps guide</a>) — fast, debuggable (gdb/valgrind), CI-friendly. Known
+    limits: POSIX scheduling is simulated (blocking-call caveats,
+    async-signal-safety), so keep host tests to pure logic + mocked
+    interfaces (IDF ships a FreeRTOS mock component for that).</li>
+    <li><strong>Target tests later:</strong> now that flashing works, add
+    on-target smoke tests driven by pytest-embedded against the real
+    chip.</li>
+    <li>Structure code so logic lives in components with narrow hardware
+    seams — that's what makes the host tier possible.</li>
+  </ul>
+
+  <h2 id="formatting">13. Formatting &amp; static analysis</h2>
+  <ul>
+    <li><code>.clang-format</code> (LLVM base, 4-space, 120 col, Linux
+    braces) + <code>.editorconfig</code> are committed; format new code
+    before commit.</li>
+    <li>IDF builds with warnings on by default — treat warnings as defects;
+    CI builds will surface them.</li>
+    <li>Optional deeper pass: <code>idf.py clang-check</code> (clang-tidy via
+    the esp-clang toolchain) — adopt when there's enough code to justify
+    it.</li>
+  </ul>
+
+  <h2 id="dependency-locking">14. Dependency locking</h2>
+  <ul>
+    <li>External components come from the official registry
+    (<a href="https://components.espressif.com">components.espressif.com</a>)
+    via <code>idf_component.yml</code> per component; the component manager
+    writes <strong><code>dependencies.lock</code></strong> — commit it,
+    exactly like any lockfile
+    (<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/tools/idf-component-manager.html">component
+    manager docs</a>).</li>
+    <li><code>managed_components/</code> (downloaded copies) stays
+    gitignored.</li>
+    <li>The IDF version itself is pinned by <code>.espidf-version</code>
+    (<a href="#version-pin">§3</a>); Python tool environments live in
+    <code>~/.espressif</code> keyed by IDF version, managed by
+    <code>install.sh</code> — no per-repo venv to maintain.</li>
+  </ul>
+
+  <h2 id="ci">15. CI</h2>
+  <p><code>.github/workflows/ci.yml</code> builds on every push/PR with
+  <a href="https://github.com/espressif/esp-idf-ci-action">espressif/esp-idf-ci-action</a>
+  (pinned <code>@v1.2.0</code>), which wraps the official
+  <code>espressif/idf</code> Docker image; <code>esp_idf_version:
+  v6.0.2</code> mirrors the repo pin and <code>target: esp32</code> matches
+  <code>sdkconfig.defaults</code>. Note: this repo currently has <strong>no
+  git remote</strong>, so the workflow is dormant scaffolding until the
+  project lands on a GitHub remote — it was written now so the pin discipline
+  exists from the first push.</p>
+
+  <h2 id="open-items">16. Open items (ordered)</h2>
+  <ol>
+    <li><strong>Identify the board</strong> — photos/silkscreen per the
+    <a href="hardware.html#checklist">checklist</a>; this gates all pin
+    work.</li>
+    <li>Partition/OTA layout decision for the confirmed 16 MB flash
+    (<a href="#partitions">§10</a>) + coredump partition
+    (<a href="#logging">§9</a>).</li>
+    <li>Board component + pin map; then display/audio/battery bring-up per
+    the identified model, using the matching
+    <a href="https://github.com/Xinyuan-LilyGO">Xinyuan-LilyGO</a> board repo
+    and <a href="https://wiki.lilygo.cc">wiki.lilygo.cc</a> as pin-map
+    sources.</li>
+    <li>Host-test harness for the first pure-logic component
+    (<a href="#testing">§12</a>).</li>
+  </ol>
+
+  <h2 id="sources">Sources</h2>
+  <p>Official documentation and repositories consulted 2026-07-17:</p>
+  <ul>
+    <li>ESP-IDF versions &amp; recommendations — <a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/versions.html">docs.espressif.com/projects/esp-idf/en/stable/esp32/versions.html</a></li>
+    <li>ESP-IDF support policy — <a href="https://github.com/espressif/esp-idf/blob/master/SUPPORT_POLICY.md">github.com/espressif/esp-idf/blob/master/SUPPORT_POLICY.md</a></li>
+    <li>ESP-IDF releases (v6.0.2 stable, v5.5.5, v6.1-beta1) — <a href="https://github.com/espressif/esp-idf/releases">github.com/espressif/esp-idf/releases</a></li>
+    <li>ESP-IDF roadmap (5.5 maintenance from Jul 2026; 6.0.x cadence) — <a href="https://github.com/espressif/esp-idf/blob/master/ROADMAP.md">github.com/espressif/esp-idf/blob/master/ROADMAP.md</a></li>
+    <li>ESP-IDF get started — <a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/index.html">docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/index.html</a></li>
+    <li>ESP-IDF macOS setup (EIM, brew packages, Python ≥ 3.10) — <a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/macos-setup.html">docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/macos-setup.html</a></li>
+    <li>Serial connection / port discovery — <a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/establish-serial-connection.html">docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/establish-serial-connection.html</a></li>
+    <li>WCH official macOS driver (CH9102) — <a href="https://github.com/WCHSoftGroup/ch34xser_macos">github.com/WCHSoftGroup/ch34xser_macos</a></li>
+    <li>arduino-esp32 releases (v3.3.x on IDF 5.5.x; v4.0 alpha on IDF 6.0) — <a href="https://github.com/espressif/arduino-esp32/releases">github.com/espressif/arduino-esp32/releases</a></li>
+    <li>Arduino core 3.x PlatformIO status — <a href="https://github.com/espressif/arduino-esp32/discussions/10039">github.com/espressif/arduino-esp32/discussions/10039</a>, <a href="https://github.com/platformio/platform-espressif32/issues/1225">github.com/platformio/platform-espressif32/issues/1225</a></li>
+    <li>pioarduino community fork — <a href="https://github.com/pioarduino/platform-espressif32">github.com/pioarduino/platform-espressif32</a></li>
+    <li>esp-idf-ci-action (v1.2.0, espressif/idf image) — <a href="https://github.com/espressif/esp-idf-ci-action">github.com/espressif/esp-idf-ci-action</a></li>
+    <li>Host apps / POSIX simulator testing — <a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/host-apps.html">docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/host-apps.html</a></li>
+    <li>IDF Component Manager — <a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/tools/idf-component-manager.html">docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/tools/idf-component-manager.html</a></li>
+    <li>Component registry — <a href="https://components.espressif.com">components.espressif.com</a></li>
+    <li>esptool docs — <a href="https://docs.espressif.com/projects/esptool/en/latest/esp32/">docs.espressif.com/projects/esptool/en/latest/esp32/</a></li>
+    <li>ESP32 datasheet (D0WDQ6 variant table) — <a href="https://www.espressif.com/documentation/esp32_datasheet_en.pdf">espressif.com/documentation/esp32_datasheet_en.pdf</a></li>
+    <li>LILYGO official repos / docs — <a href="https://github.com/Xinyuan-LilyGO">github.com/Xinyuan-LilyGO</a>, <a href="https://wiki.lilygo.cc">wiki.lilygo.cc</a></li>
+  </ul>
+</main>
+<footer>
+  <p>Boombox · local documentation · <a href="index.html">docs home</a></p>
+</footer>
+</body>
+</html>

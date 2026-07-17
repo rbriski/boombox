@@ -4,7 +4,7 @@
 #   scripts/build.sh                 # idf.py build
 #   scripts/build.sh size            # any idf.py args pass through
 #   scripts/build.sh -p <port> flash monitor   # explicit, deliberate flashing —
-#                                    # read docs/hardware.md safety rules first
+#                                    # read docs/hardware.html safety rules first
 set -euo pipefail
 
 # shellcheck source=scripts/env.sh

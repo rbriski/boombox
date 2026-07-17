@@ -2,9 +2,9 @@
 
 Operational ground rules and canonical commands for agents (and humans)
 working in this repo. Background and rationale live in
-[`docs/setup-research.md`](docs/setup-research.md); device status in
-[`docs/hardware.md`](docs/hardware.md); SoC details in
-[`docs/chip-architecture.md`](docs/chip-architecture.md).
+[`docs/setup-research.html`](docs/setup-research.html); device status in
+[`docs/hardware.html`](docs/hardware.html); SoC details in
+[`docs/chip-architecture.html`](docs/chip-architecture.html).
 
 ## Facts you may rely on
 
@@ -28,7 +28,7 @@ scripts/build.sh -p /dev/cu.usbserial-XXXX flash monitor   # deliberate flash+mo
 - Port discovery: `ls /dev/cu.usbserial* /dev/cu.wchusbserial*`
 - Monitor exit: `Ctrl-]`. Serial console runs at 115200 on UART0.
 - Tests: none configured yet. When they exist they will be host-first
-  (POSIX simulator) — see `docs/setup-research.md` §12 — and wired into
+  (POSIX simulator) — see `docs/setup-research.html` §12 — and wired into
   these scripts + CI; run whatever `scripts/` exposes at that time.
 
 ## Layout conventions
@@ -70,7 +70,7 @@ The attached device is the only unit we have. In order:
 1. **Never invent a pin map.** Do not write board-specific GPIO, display,
    audio/amplifier, or battery/power code until the exact LILYGO model and
    pinout are confirmed from an official source and recorded in
-   `docs/hardware.md`. Board-neutral means: console UART only, zero GPIO
+   `docs/hardware.html`. Board-neutral means: console UART only, zero GPIO
    configuration.
 2. **Back up before writing.** Before the first write of a session that
    changes flash contents, take (or confirm) a full flash backup to

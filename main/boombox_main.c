@@ -1,7 +1,7 @@
 /*
  * Boombox — board-neutral serial hello-world.
  *
- * The physical board model is unconfirmed (docs/hardware.md), so this app must
+ * The physical board model is unconfirmed (docs/hardware.html), so this app must
  * not touch any GPIO: it uses only the default console UART via the on-board
  * USB bridge. It prints what the chip can report about itself, then heartbeats
  * so a monitor session shows the firmware is alive.
@@ -43,7 +43,7 @@ void app_main(void)
              (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? " embedded-flash" : " external-flash");
 
     /* Flash size is unknown for this board until first probed on hardware
-     * (docs/setup-research.md §10) — report it whenever we do run. */
+     * (docs/setup-research.html §10) — report it whenever we do run. */
     uint32_t flash_size = 0;
     esp_err_t flash_err = esp_flash_get_size(NULL, &flash_size);
     if (flash_err == ESP_OK) {
@@ -53,7 +53,7 @@ void app_main(void)
     }
 
     ESP_LOGI(TAG, "Minimum free heap: %" PRIu32 " bytes", esp_get_minimum_free_heap_size());
-    ESP_LOGI(TAG, "Board model unconfirmed — no peripherals enabled (see docs/hardware.md)");
+    ESP_LOGI(TAG, "Board model unconfirmed — no peripherals enabled (see docs/hardware.html)");
 
     for (;;) {
         int64_t uptime_s = esp_timer_get_time() / 1000000;

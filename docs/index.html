@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boombox documentation</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <p class="brand"><a href="index.html">Boombox docs</a></p>
+  <nav aria-label="Documentation">
+    <a href="index.html" aria-current="page">Index</a>
+    <a href="setup-research.html">Setup research</a>
+    <a href="hardware.html">Hardware</a>
+    <a href="chip-architecture.html">Chip architecture</a>
+  </nav>
+</header>
+<main>
+  <h1>Boombox documentation</h1>
+  <p class="lede">Firmware project for a LILYGO ESP32 device (exact board model
+  not yet confirmed). These pages are self-contained HTML — no network,
+  scripts, or frameworks needed to read them.</p>
+
+  <ul class="doc-index">
+    <li>
+      <h2><a href="setup-research.html">Toolchain &amp; project setup research</a></h2>
+      <p>Why this project uses native ESP-IDF pinned at v6.0.2, with cited
+      comparisons against PlatformIO and Arduino, the macOS setup path, and
+      every deferred decision (partitions/OTA, secrets, testing, CI).</p>
+    </li>
+    <li>
+      <h2><a href="hardware.html">Hardware notes &amp; identification status</a></h2>
+      <p>What is verified about the attached device, what the unknown board
+      model blocks, the identification checklist, and the safe-workflow
+      rules for flashing.</p>
+    </li>
+    <li>
+      <h2><a href="chip-architecture.html">ESP32-D0WDQ6-V3 chip architecture</a></h2>
+      <p>Die-level facts from the official datasheet and TRM: CPUs, memory
+      map, boot path, ULP/RTC domain, radios, DMA and I2S — and the boundary
+      where verified SoC facts end and unknown carrier wiring begins.</p>
+    </li>
+  </ul>
+
+  <h2 id="repo-files">Repository control files (Markdown, at repo root)</h2>
+  <ul>
+    <li><code>README.md</code> — landing page and quickstart</li>
+    <li><code>AGENTS.md</code> — operating rules and canonical commands for
+    agents and humans working in this repo</li>
+  </ul>
+</main>
+<footer>
+  <p>Boombox · local documentation · <a href="index.html">docs home</a></p>
+</footer>
+</body>
+</html>

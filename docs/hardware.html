@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hardware notes — Boombox</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <p class="brand"><a href="index.html">Boombox docs</a></p>
+  <nav aria-label="Documentation">
+    <a href="index.html">Index</a>
+    <a href="setup-research.html">Setup research</a>
+    <a href="hardware.html" aria-current="page">Hardware</a>
+    <a href="chip-architecture.html">Chip architecture</a>
+  </nav>
+</header>
+<main>
+  <h1>Boombox hardware notes</h1>
+  <p><span class="status">Board model: UNCONFIRMED</span></p>
+  <p class="warning"><strong>All pin-dependent work is blocked</strong> on the
+  identification checklist below.</p>
+
+  <h2 id="verified">What is verified (read-only identification, 2026-07-17)</h2>
+  <div class="table-scroll">
+    <table>
+      <caption>Device facts established without writing to the board</caption>
+      <thead>
+        <tr><th scope="col">Property</th><th scope="col">Value</th><th scope="col">How established</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Serial port (macOS)</td><td><code>/dev/cu.usbserial-5B1F0057851</code></td><td>USB enumeration, no extra driver</td></tr>
+        <tr><td>USB–UART bridge</td><td>WCH CH9102 family (VID:PID <code>1a86:55d4</code>)</td><td>USB descriptors</td></tr>
+        <tr><td>Chip</td><td>ESP32-D0WDQ6-V3, revision 3.1</td><td><code>esptool</code> chip identification</td></tr>
+        <tr><td>CPU</td><td>Dual-core Xtensa LX6 @ 240&nbsp;MHz</td><td><code>esptool</code></td></tr>
+        <tr><td>Crystal</td><td>40&nbsp;MHz</td><td><code>esptool</code></td></tr>
+        <tr><td>MAC address</td><td><code>a4:f0:0f:d9:71:b8</code></td><td><code>esptool</code> (read-only)</td></tr>
+        <tr><td>Flash</td><td>External SPI, <strong>16&nbsp;MB</strong> (Winbond, mfr <code>0xEF</code>, device <code>0x4018</code>), 3.3&nbsp;V</td><td><code>esptool flash-id</code> (read-only)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The vendor is presumed LILYGO, but USB descriptors do not identify the
+  board model, and many LILYGO (and non-LILYGO) boards combine a classic
+  ESP32 with a CH9102 bridge. <strong>We have identified the die, not the
+  board.</strong></p>
+
+  <h2 id="blocked">What the unknown blocks</h2>
+  <p>Until the model is confirmed with a pin map from an official source
+  (<a href="https://github.com/Xinyuan-LilyGO">Xinyuan-LilyGO board repos</a>,
+  <a href="https://wiki.lilygo.cc">wiki.lilygo.cc</a>), firmware must not:</p>
+  <ul>
+    <li>configure or drive <strong>any GPIO</strong> (display, backlight,
+    audio codec/amp, LEDs, buttons, battery-sense dividers — wrong pins can
+    fight on-board circuits);</li>
+    <li>assume PSRAM, display controller, SD slot, or battery charger
+    presence;</li>
+    <li>assume a flash layout beyond the 2&nbsp;MB-safe default build (the
+    chip's 16&nbsp;MB is confirmed, but the partition layout decision is
+    deliberate — see <a href="setup-research.html#partitions">setup research
+    §10</a>).</li>
+  </ul>
+  <p>The scaffold app is console-UART-only for exactly this reason.</p>
+
+  <h2 id="checklist">Identification checklist (what a human must provide)</h2>
+  <p>Any one of these usually suffices; more is better:</p>
+  <ol>
+    <li><strong>Silkscreen text</strong> on the PCB, both sides — LILYGO
+    prints the product name and revision (e.g. <code>T-Display V1.1</code>,
+    <code>T8 V1.7</code>, <code>T-Energy</code>, <code>TTGO T-Koala</code>).
+    Photograph front and back.</li>
+    <li><strong>Module vs bare chip</strong>: is the ESP32 under a shielded
+    module can (marking like <code>ESP32-WROOM-32E</code> /
+    <code>WROVER-E</code>) or a bare QFN chip on the PCB? Photograph the
+    marking.</li>
+    <li><strong>Peripherals visible</strong>: display (size/ribbon marking),
+    speaker/amp, battery connector (JST), SD slot, buttons count, antenna
+    type.</li>
+    <li>Optionally, the <strong>product listing / order page</strong> it was
+    purchased from.</li>
+  </ol>
+  <p>Record findings here when known: board model = ______, board revision =
+  ______, official repo/wiki page = ______.</p>
+
+  <h2 id="safety">Safe-workflow rules for this device</h2>
+  <ul>
+    <li>Flashing is always an explicit human command — never a side effect of
+    build or test tooling.</li>
+    <li>The first flash <strong>overwrites the factory demo firmware</strong>.
+    Do it only deliberately, with a full flash backup taken first.</li>
+    <li>Before any write: back up the entire flash to
+    <code>~/Library/Application Support/Boombox/backups/</code> (timestamped,
+    outside the repo) and record path, size, and SHA-256. Never commit the
+    binary — it can embed NVS contents and credentials.</li>
+    <li>No bulk erase (<code>erase-flash</code>) without explicit per-session
+    user approval.</li>
+    <li>Read-only probes are safe and preferred:
+      <ul>
+        <li><code>esptool -p /dev/cu.usbserial-5B1F0057851 flash-id</code> —
+        flash manufacturer + size</li>
+        <li><code>esptool -p /dev/cu.usbserial-5B1F0057851 chip-id</code> /
+        MAC read</li>
+        <li><code>esptool read-flash</code> to a file (this is how backups are
+        taken)</li>
+      </ul>
+    </li>
+    <li>Flash over a direct, data-capable USB cable (no hub). An interrupted
+    flash is recoverable — the ROM serial bootloader always remains.</li>
+    <li>Bulk serial transfers on this CH9102 bridge are unreliable above
+    230400 baud (read-flash attempts at 921600 and 460800 both aborted with
+    packet corruption; 230400 is stable). Prefer <code>-b 230400</code> for
+    long reads.</li>
+  </ul>
+</main>
+<footer>
+  <p>Boombox · local documentation · <a href="index.html">docs home</a></p>
+</footer>
+</body>
+</html>

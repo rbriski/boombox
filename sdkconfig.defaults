@@ -1,6 +1,6 @@
 # Boombox committed config seed. Only settings that are safe for ANY classic
 # ESP32 board belong here — the physical board model is unconfirmed
-# (docs/hardware.md). Board-specific options arrive after identification.
+# (docs/hardware.html). Board-specific options arrive after identification.
 # Never put credentials or secrets in this file (generated sdkconfig is
 # gitignored; this file is not).
 CONFIG_IDF_TARGET="esp32"

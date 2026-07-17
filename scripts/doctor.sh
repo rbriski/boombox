@@ -69,7 +69,7 @@ esac
 if [ -n "$ports" ]; then
     pass "serial port(s) visible: $(echo "$ports" | tr '\n' ' ')"
 else
-    warn "no USB serial port visible — device unplugged, or driver needed (docs/setup-research.md §4)"
+    warn "no USB serial port visible — device unplugged, or driver needed (docs/setup-research.html §4)"
 fi
 
 echo

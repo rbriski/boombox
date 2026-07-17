@@ -1,16 +1,16 @@
 # Boombox
 
 Firmware for a LILYGO ESP32 device. The chip is identified
-(ESP32-D0WDQ6-V3 rev 3.1, dual-core 240 MHz, external flash of unknown size,
+(ESP32-D0WDQ6-V3 rev 3.1, dual-core 240 MHz, 16 MB external flash,
 CH9102 USB bridge at `/dev/cu.usbserial-5B1F0057851`); the **board model is
 not yet confirmed**, so the firmware is deliberately board-neutral — console
 UART only, no GPIO — until the identification checklist in
-[`docs/hardware.md`](docs/hardware.md) is completed.
+[`docs/hardware.html`](docs/hardware.html) is completed.
 
 Toolchain: **native ESP-IDF, pinned at the tag in [`.espidf-version`](.espidf-version)**
 (currently v6.0.2). Why ESP-IDF over PlatformIO/Arduino, and every other setup
 decision, is documented with sources in
-[`docs/setup-research.md`](docs/setup-research.md).
+[`docs/setup-research.html`](docs/setup-research.html).
 
 ## Quickstart (macOS)
 
@@ -34,7 +34,7 @@ matches the pin.
 ### Flash & monitor (deliberate, manual)
 
 Flashing **erases the board's factory demo firmware** — read the safety rules
-in [`docs/hardware.md`](docs/hardware.md) first, then:
+in [`docs/hardware.html`](docs/hardware.html) first, then:
 
 ```sh
 scripts/build.sh -p /dev/cu.usbserial-5B1F0057851 flash monitor
@@ -48,7 +48,7 @@ heartbeat.
 ```
 main/               app component (board-neutral hello-world)
 components/         (future) one component per concern; board pin map lands here
-docs/               setup research (cited) + hardware identification status
+docs/               HTML documentation site (start at docs/index.html)
 scripts/            bootstrap / doctor / build (all read .espidf-version)
 .github/workflows/  CI build via the official espressif/esp-idf-ci-action
 sdkconfig.defaults  committed config seed (target only; generated sdkconfig is gitignored)
@@ -59,9 +59,9 @@ sdkconfig.defaults  committed config seed (target only; generated sdkconfig is g
 - The ESP-IDF pin changes only via a deliberate commit updating
   `.espidf-version` **and** the mirrored version in
   `.github/workflows/ci.yml` together.
-- No GPIO configuration until the board is identified (`docs/hardware.md`).
+- No GPIO configuration until the board is identified (`docs/hardware.html`).
 - Secrets never enter git: `sdkconfig` is generated and gitignored; commit
   only a clean `sdkconfig.defaults`. Runtime secrets go to NVS.
 - Format C code with `clang-format` (config committed); keep warnings at zero.
 - Flash-size probe, partition/OTA layout, and peripheral bring-up are the
-  ordered next steps — see `docs/setup-research.md` §16.
+  ordered next steps — see `docs/setup-research.html` §16.

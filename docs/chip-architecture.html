@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESP32-D0WDQ6-V3 chip architecture — Boombox</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <p class="brand"><a href="index.html">Boombox docs</a></p>
+  <nav aria-label="Documentation">
+    <a href="index.html">Index</a>
+    <a href="setup-research.html">Setup research</a>
+    <a href="hardware.html">Hardware</a>
+    <a href="chip-architecture.html" aria-current="page">Chip architecture</a>
+  </nav>
+</header>
+<main>
+  <h1>ESP32-D0WDQ6-V3 — chip architecture notes</h1>
+  <p class="lede">What firmware authors need to know about the SoC on the
+  Boombox board. Every claim here is a <strong>verified SoC fact</strong> from
+  official Espressif sources — principally the
+  <a href="https://www.espressif.com/documentation/esp32_datasheet_en.pdf">ESP32
+  Series Datasheet v5.2</a> and the ESP-IDF programming guide. What it
+  deliberately does <strong>not</strong> contain is anything about how the
+  LILYGO carrier board wires this chip — see
+  <a href="#boundary">the knowledge boundary</a> and the
+  <a href="hardware.html">hardware notes</a>.</p>
+
+  <h2 id="part-number">Part number, decoded</h2>
+  <p>Per the datasheet nomenclature (Figure 1-1) and comparison table
+  (Table 1-1), <code>ESP32-D0WDQ6-V3</code> means:</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>D</code></td><td>Dual-core</td></tr>
+        <tr><td><code>0</code></td><td><strong>No in-package flash</strong> — flash is an external QSPI chip on the board</td></tr>
+        <tr><td><code>WD</code></td><td>Wi-Fi 802.11 b/g/n + Bluetooth/Bluetooth LE dual mode</td></tr>
+        <tr><td><code>Q6</code></td><td>QFN 6×6 mm package (48-pin)</td></tr>
+        <tr><td><code>V3</code></td><td>Chip revision v3.0 or newer — ours reports <strong>v3.1</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Status note: the datasheet marks ESP32-D0WDQ6-V3
+  <strong>NRND</strong> (not recommended for <em>new designs</em>). That's a
+  hardware-procurement signal, not a software one: ESP-IDF v6.0 fully
+  supports it, and it changes nothing for firmware on the board we own.
+  Revision v3.x matters mainly because early-revision (v1.x) errata
+  workarounds don't apply; IDF reads the revision at boot.</p>
+
+  <h2 id="cpus">CPUs and execution model</h2>
+  <ul>
+    <li>Two <strong>Xtensa 32-bit LX6</strong> cores, 7-stage pipeline, up to
+    <strong>240&nbsp;MHz</strong> (1079.96 CoreMark for both cores), each with
+    FPU and DSP extensions (32-bit multiplier/divider, 40-bit MAC); 32
+    interrupt vectors from ~70 sources per core; JTAG debug.</li>
+    <li>ESP-IDF names them <strong>PRO_CPU (core 0)</strong> and
+    <strong>APP_CPU (core 1)</strong> and runs <strong>FreeRTOS in SMP
+    mode</strong> across both. Tasks can be pinned to a core or float
+    (<code>xTaskCreatePinnedToCore</code>); ISRs run on the core that
+    registered them. <code>app_main</code> runs in the <em>main</em> task
+    after the scheduler is already running, and is allowed to return — other
+    tasks keep running
+    (<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/startup.html">app
+    startup flow</a>).</li>
+    <li>Practical consequence: Wi-Fi/BT stacks traditionally load PRO_CPU;
+    latency-sensitive product work (eventually audio) typically pins to
+    APP_CPU. Shared-state code must be written for true parallelism (two
+    cores, not just preemption).</li>
+  </ul>
+
+  <h2 id="memory">Memory</h2>
+  <p>Internal (datasheet §4.1.2, memory map Table 4-1):</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">Memory</th><th scope="col">Size</th><th scope="col">Notes</th></tr></thead>
+      <tbody>
+        <tr><td>ROM</td><td>448 KB (384 + 64)</td><td>Mask ROM: first-stage boot + core routines</td></tr>
+        <tr><td>SRAM</td><td>520 KB in three banks</td><td>SRAM0 192 KB, SRAM1 128 KB, SRAM2 200 KB</td></tr>
+        <tr><td>RTC FAST RAM</td><td>8 KB</td><td>CPU-accessible; survives deep sleep; used on deep-sleep wake path</td></tr>
+        <tr><td>RTC SLOW RAM</td><td>8 KB</td><td>ULP-accessible during deep sleep; ULP program lives here</td></tr>
+        <tr><td>eFuse</td><td>1 Kbit</td><td>256 b system (MAC, config), 768 b customer (flash-enc keys, etc.)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul>
+    <li>SRAM is used as both <strong>IRAM</strong> (instruction) and
+    <strong>DRAM</strong> (data) regions at different addresses; ESP-IDF's
+    linker places code/data accordingly. <code>IRAM_ATTR</code> exists to
+    force hot/ISR code into internal RAM (required for code that runs while
+    flash cache is disabled).</li>
+    <li>Real-world budget: after IDF, Wi-Fi/BT stacks, and heap structures,
+    free DRAM heap is on the order of ~200–300 KB — the scaffold app logs
+    the live number at boot.</li>
+  </ul>
+  <p>External (datasheet §4.1.3):</p>
+  <ul>
+    <li>Up to <strong>16 MB QSPI flash</strong>, executed <em>in place</em>
+    through cache: mapped into instruction space (up to 11 MB + 248 KB at a
+    time) and read-only data space (up to 4 MB at a time). Our board's flash
+    chip is <strong>confirmed 16 MB</strong> (Winbond,
+    <a href="hardware.html#verified">hardware notes</a>) — external to this
+    no-in-package-flash variant.</li>
+    <li>Up to <strong>8 MB external PSRAM</strong> supported (4 MB mapped at
+    a time). Whether this board has any is <strong>unknown</strong>
+    (carrier-board question).</li>
+    <li><strong>Cache</strong>: each CPU has a 32 KB two-way set-associative
+    cache, 32-byte lines. Flash code/rodata access goes through it;
+    cache-miss latency is why hot paths and flash-write-concurrent code use
+    IRAM.</li>
+  </ul>
+
+  <h2 id="boot">Boot path</h2>
+  <p>(<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/startup.html">Startup
+  guide</a>; datasheet §3)</p>
+  <ol>
+    <li><strong>ROM (first-stage) bootloader</strong> — PRO_CPU runs from mask
+    ROM; APP_CPU held in reset. Strapping pins (<code>GPIO_STRAP_REG</code>)
+    select normal flash boot vs serial download mode (this is what esptool
+    uses; it is always available, which is why an interrupted flash is
+    recoverable).</li>
+    <li>ROM loads the <strong>second-stage bootloader</strong> from flash
+    offset <strong>0x1000</strong> (classic-ESP32-specific offset).</li>
+    <li>Second-stage bootloader reads the <strong>partition table</strong>
+    (default offset 0x8000), picks the app image, copies IRAM/DRAM segments
+    into RAM, maps IROM/DROM through the flash MMU/cache, and jumps to the
+    app.</li>
+    <li>App startup: <code>call_start_cpu0</code> on PRO_CPU, APP_CPU released
+    → <code>call_start_cpu1</code>; FreeRTOS scheduler starts on both; main
+    task calls <code>app_main</code>.</li>
+  </ol>
+
+  <h2 id="rtc-ulp">RTC domain, ULP, and power</h2>
+  <ul>
+    <li>Five power modes: Active, Modem-sleep, Light-sleep,
+    <strong>Deep-sleep (~10 µA)</strong>, Hibernation.</li>
+    <li>The <strong>RTC domain</strong> (RTC memories, RTC GPIOs, ULP) stays
+    powered in deep sleep. The <strong>ULP coprocessor</strong> runs a small
+    program from RTC SLOW RAM and can read sensors/GPIO and wake the main
+    CPUs on conditions or timers — the mechanism for any future
+    always-listening/battery behavior.</li>
+    <li>Clocks: 40 MHz external crystal (our board's, verified) feeds the PLL
+    (CPU 80/160/240 MHz); internal 8 MHz and ~150 kHz RC oscillators;
+    optional external 32 kHz crystal for accurate RTC timekeeping. A
+    dedicated <strong>Audio PLL</strong> exists for low-jitter I2S clocking
+    (datasheet §4.2.3) — relevant to Boombox's audio ambitions.</li>
+  </ul>
+
+  <h2 id="watchdogs">Watchdogs &amp; crash behavior</h2>
+  <ul>
+    <li>Three hardware watchdogs: <strong>MWDT</strong> in each of the two
+    timer groups plus the <strong>RTC watchdog (RWDT)</strong> (datasheet
+    §4.4.2). ESP-IDF arms an interrupt watchdog and a task watchdog (idle
+    tasks subscribed) by default — leave them on; subscribe real tasks when
+    the product loop exists.</li>
+    <li>On abort/panic, IDF prints a register dump + backtrace on UART0. Core
+    dump to flash is a config option once a partition exists (see
+    <a href="setup-research.html#logging">setup research §9–10</a>).</li>
+  </ul>
+
+  <h2 id="radios">Radios</h2>
+  <ul>
+    <li><strong>Wi-Fi 802.11 b/g/n (2.4 GHz)</strong> and <strong>Bluetooth
+    4.2 BR/EDR + BLE dual mode</strong>, sharing the 2.4 GHz radio; the
+    40 MHz crystal is required for RF operation. Antenna/RF layout is a
+    carrier-board fact (unknown).</li>
+    <li>Both stacks are RAM- and CPU-hungry; enabling them shrinks heap
+    substantially and constrains real-time budgets — measure again after
+    enabling either.</li>
+  </ul>
+
+  <h2 id="peripherals">DMA and peripherals that matter for Boombox</h2>
+  <p>Peripheral inventory (datasheet feature list): 34 programmable GPIOs
+  (5 strapping, 6 input-only), 4× SPI, <strong>2× I2S</strong>, 2× I2C, 3×
+  UART, 12-bit SAR ADC (up to 18 ch), 2× 8-bit DAC, 10 touch sensors,
+  SD/eMMC/SDIO host, SDIO/SPI slave, RMT, PCNT, LED PWM (16 ch), Motor PWM,
+  TWAI (CAN 2.0), Ethernet MAC with dedicated DMA + IEEE 1588.</p>
+  <p>DMA is what makes audio feasible: several peripherals (I2S, SPI, UART
+  via UDMA, SDIO, EMAC) move data without CPU copies.</p>
+
+  <h3 id="i2s">I2S — the eventual audio path</h3>
+  <p>(<a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/i2s.html">IDF
+  I2S driver docs</a>)</p>
+  <ul>
+    <li>Two controllers, <strong>I2S0 and I2S1</strong>, both DMA-driven.</li>
+    <li>Modes on classic ESP32: standard (Philips/MSB/PCM) at 8/16/24/32-bit;
+    <strong>PDM</strong> TX/RX (16-bit, with hardware PCM conversion);
+    <strong>no TDM</strong>.</li>
+    <li>Built-in <strong>ADC/DAC mode exists only on I2S0</strong> (internal
+    8-bit DACs) — a fallback audio path if the board turns out to have no
+    codec/amp.</li>
+    <li>Constraint: TX and RX clock/GPIO routing on a controller is not
+    independent — simplex TX and RX cannot live on the <em>same</em>
+    controller; full-duplex requires identical clock config on one port.</li>
+    <li>The Audio PLL provides accurate sample clocks (e.g. the 44.1 kHz
+    family).</li>
+  </ul>
+  <p><strong>UART0</strong> is the console (115200 baud via the CH9102
+  bridge) — the only peripheral the board-neutral firmware touches.</p>
+
+  <h2 id="security">Security hardware</h2>
+  <p>Secure boot, flash encryption, and AES/SHA-2/RSA accelerators + TRNG are
+  on-die (datasheet feature list). Not enabled in the scaffold; flash
+  encryption + NVS encryption become relevant with production provisioning
+  (<a href="setup-research.html#secrets">setup research §8</a>). eFuse writes
+  are permanent — no eFuse operations without explicit human approval.</p>
+
+  <h2 id="constraints">Constraints cheat-sheet</h2>
+  <ul>
+    <li>No in-package flash: <strong>all code XIP's from an external QSPI
+    chip through a 32 KB/core cache</strong> — the flash is confirmed 16 MB;
+    whether PSRAM exists is still unknown for this board.</li>
+    <li>6 GPIOs are input-only; 5 are strapping pins that must float/drive
+    correctly at reset — one more reason not to guess pin assignments.</li>
+    <li>Wi-Fi/BT + audio compete for RAM, cores, and (if PSRAM ever appears)
+    cache bandwidth; budget deliberately once the product loop exists.</li>
+    <li>Deep-sleep design must fit its state into 8 KB + 8 KB RTC RAM.</li>
+  </ul>
+
+  <h2 id="boundary">The knowledge boundary</h2>
+  <p>Everything above is <strong>die-level fact</strong> for ESP32-D0WDQ6-V3
+  from Espressif documentation, plus these <strong>measured</strong> board
+  facts: silicon revision v3.1, 40 MHz crystal, CH9102 USB bridge, 16 MB
+  Winbond flash, MAC <code>a4:f0:0f:d9:71:b8</code>, and a working UART0
+  console.</p>
+  <p>Everything else — which GPIOs reach connectors, display/codec/amplifier
+  presence and wiring, battery circuitry, PSRAM, buttons, LEDs — is
+  <strong>carrier-board territory and unknown</strong> until the LILYGO model
+  is identified (checklist in the <a href="hardware.html#checklist">hardware
+  notes</a>). Firmware must not cross this boundary: no GPIO configuration,
+  no peripheral bring-up beyond UART0, no partition-layout changes, until the
+  hardware notes record a verified model + pin map.</p>
+
+  <h2 id="references">Deep-dive references</h2>
+  <ul>
+    <li><a href="https://www.espressif.com/documentation/esp32_datasheet_en.pdf">ESP32 Series Datasheet v5.2</a> — nomenclature, memory map, peripherals, electrical</li>
+    <li><a href="https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf">ESP32 Technical Reference Manual</a> — register-level detail (cache, MMU, DMA, ULP, I2S)</li>
+    <li><a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/startup.html">ESP-IDF startup flow</a></li>
+    <li><a href="https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/i2s.html">ESP-IDF I2S driver</a></li>
+    <li><a href="https://www.espressif.com/sites/default/files/documentation/eco_and_workarounds_for_bugs_in_esp32_en.pdf">ESP32 Series SoC Errata</a> — revision-specific errata</li>
+  </ul>
+</main>
+<footer>
+  <p>Boombox · local documentation · <a href="index.html">docs home</a></p>
+</footer>
+</body>
+</html>
