@@ -741,13 +741,17 @@
     <code>avrcp_absolute_volume</code>, <code>avrcp_ct_cover_art</code>) —
     used in <a href="#phase-6">Phase 6</a>.</p>
     <p class="warning"><strong>Version drift warning.</strong> Older
-    tutorials (and the source guide's §7) reference an
-    <code>a2dp_sink</code> example and bundled AVRCP handling; at v6.0.2 the
-    example tree is as stated above. Exact Kconfig option names for the
-    codec/pin choices should be read from the example's own
-    <code>README.md</code>/<code>menuconfig</code> in the checked-out pinned
-    tree rather than from memory or third-party posts — flag any mismatch in
-    the decision log.</p>
+    third-party tutorials reference an <code>a2dp_sink</code> example with
+    bundled AVRCP handling; at v6.0.2 the example tree is as stated above
+    (no plain <code>a2dp_sink</code> exists there — the supplied guide's §7
+    already names <code>a2dp_sink_stream</code> correctly). Note the I2S
+    pin defaults and the DAC/I2S output choice live in a shared
+    <code>classic_bt/common</code> component menu (&ldquo;A2DP Sink
+    Internal Codec Example Configuration&rdquo;) at this version, not in
+    the example's own Kconfig — read exact option names from
+    <code>menuconfig</code> in the checked-out pinned tree rather than from
+    memory or third-party posts, and flag any mismatch in the decision
+    log.</p>
     <p><strong>Steps.</strong></p>
     <ol>
       <li>From the pinned environment, instantiate the example:
