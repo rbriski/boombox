@@ -264,19 +264,23 @@
         <tr>
           <td>PCM5102A module variant</td>
           <td><span class="status status--confirmed">MODULE IDENTIFIED</span>
-          <span class="status status--unknown">STRAPS / MEASURE</span></td>
+          <span class="status status--confirmed">JUMPER MAP VERIFIED</span>
+          <span class="status status--unknown">POWERED DEFAULTS / MEASURE</span></td>
           <td>Photographed both sides 2026-07-17 (<a href="#phase-2">Phase&nbsp;2</a>).
           It is the purple <strong>GY-PCM5102</strong> shared-PCB module
           (PCM5100/5101/5102 selection legend) populated with a genuine-marked
-          TI/Burr-Brown <strong>PCM5102A</strong>; power is the module-standard
-          VIN&nbsp;&rarr; onboard 3.3&nbsp;V LDO&nbsp;&rarr; chip with a
-          ground-centered line output (TI DirectPath — no DC-blocking caps). Chip
-          facts stay CONFIRMED from TI docs (<a href="#audio-design">§13</a>).
-          Open (MEASURE): the H1L–H4L strap-bridge directions are not resolvable
-          at the photo resolution, and the <code>A3V3</code> direction, the VIN
-          range and on-board SCK grounding are unread — a bench continuity check
-          (confirm FMT=Low, XSMT=High, SCK→GND) remains (Move&nbsp;2,
-          <a href="#next">§7</a>).</td>
+          TI/Burr-Brown <strong>PCM5102A</strong>; power <em>appears consistent
+          with</em> VIN&nbsp;&rarr; onboard 3.3&nbsp;V LDO&nbsp;&rarr; the PCM5102A
+          with a ground-centered line output (TI DirectPath — no DC-blocking caps),
+          though the exact regulator and VIN range are not verified. Chip facts
+          stay CONFIRMED from TI docs (<a href="#audio-design">§13</a>).
+          <strong>Verified physical connectivity (unpowered meter, 2026-07-17):</strong>
+          H1L&rarr;FLT, H2L&rarr;DEMP, H3L&rarr;XSMT, H4L&rarr;FMT; each jumper's
+          L pad ties directly to ground; all four solder jumpers read
+          open/unbridged. Open (MEASURE): the powered FLT/DEMP/XSMT/FMT defaults,
+          the <code>A3V3</code> output voltage, the VIN range and on-board
+          SCK-to-GND stay unmeasured — unpowered continuity does not establish
+          operating logic levels (Move&nbsp;2, <a href="#next">§7</a>).</td>
         </tr>
         <tr>
           <td>RX-5235 internals (rails, selector, dimensions)</td>
@@ -320,8 +324,9 @@
     <li>PCM5102A stereo DAC module
       <span class="flow-detail">chip CONFIRMED: 2.1&nbsp;V<sub>RMS</sub>
       ground-centered line output, internal PLL from BCK (no SCK wire);
-      module identified as the purple GY-PCM5102 carrier — strap state still
-      MEASURE</span></li>
+      module identified as the purple GY-PCM5102 carrier, jumper-to-pin map
+      verified by meter (all four jumpers open) — powered config-pin defaults
+      still MEASURE</span></li>
     <li class="flow-unknown">Attenuation / isolation network
       <span class="flow-detail"><span class="status status--unknown">UNKNOWN /
       MEASURE</span> — series/shunt values are hypotheses until the RX-5235
@@ -390,8 +395,8 @@
           <th scope="row">M2</th>
           <td>Phone audio plays via PCM5102A into an external amp</td>
           <td><span class="status status--blocked">BLOCKED / HOLD</span> —
-          awaits M1 (the DAC module is now identified; strap check + bench
-          remain)</td>
+          awaits M1 (the DAC module is now identified and its jumper map verified;
+          powered config-pin defaults + bench remain)</td>
           <td>M1; <a href="#phase-2">Phase 2</a>, <a href="#phase-4">Phase 4</a></td>
           <td><a href="#test-audio">Audio test matrix</a> rows pass; noise
           notes recorded</td>
@@ -545,30 +550,32 @@
     <li>
       <p><strong>Identify the exact PCM5102A module.</strong>
       <span class="status status--confirmed">MODULE IDENTIFIED</span>
-      <span class="status status--unknown">STRAPS UNREAD</span></p>
+      <span class="status status--confirmed">JUMPER MAP VERIFIED</span>
+      <span class="status status--unknown">POWERED DEFAULTS OPEN</span></p>
       <ul>
-        <li><strong>Done:</strong> photographed both sides. It is the purple
-        <strong>GY-PCM5102</strong> shared-PCB module (PCM5100/5101/5102
+        <li><strong>Done:</strong> photographed both sides 2026-07-17. It is the
+        purple <strong>GY-PCM5102</strong> shared-PCB module (PCM5100/5101/5102
         selection legend) populated with a genuine-marked TI/Burr-Brown
         <strong>PCM5102A</strong>; every I2S/config/output label transcribed;
-        power is the module-standard VIN&nbsp;&rarr; onboard 3.3&nbsp;V
-        LDO&nbsp;&rarr; chip with a ground-centered line-out — the exact LDO,
-        the <code>A3V3</code> direction and the VIN range stay MEASURE
+        power <em>appears consistent with</em> VIN&nbsp;&rarr; onboard 3.3&nbsp;V
+        LDO&nbsp;&rarr; the PCM5102A with a ground-centered line-out — the exact
+        LDO, the <code>A3V3</code> output voltage and the VIN range stay MEASURE
         (<a href="#phase-2">Phase 2</a>).</li>
-        <li><strong>Remaining:</strong> the four config solder-jumpers
-        <code>H1L–H4L</code> (FLT&nbsp;/&nbsp;DEMP&nbsp;/&nbsp;XSMT&nbsp;/&nbsp;FMT)
-        read as uniformly tinned at the 1000-px photo resolution — the bridge
-        <em>direction</em> (3V3 vs GND) is not readable, and the LDO part and
-        on-board SCK-to-GND are likewise unconfirmed.</li>
-        <li><strong>Next input needed (either one):</strong> a full-resolution,
-        oblique-lit macro of the <code>H1L–H4L</code> block (plus the VIN-side
-        LDO and the SCK pad); <em>or</em> a bench continuity check of each
-        config pin to 3V3/GND. Either resolves the straps — and the bench check
-        is required before audio regardless, because XSMT is an active-low mute
-        with an internal pulldown (TI), so any low or floating XSMT stays muted.
-        (A commonly-reported all-L factory default would mute via XSMT=L, but
-        that is a secondary, non-authoritative tendency — this unit's strap
-        state is unknown until measured.)</li>
+        <li><strong>Also done (unpowered meter, 2026-07-17):</strong> the four
+        config solder-jumpers are mapped and read directly with a meter —
+        <code>H1L&rarr;FLT</code>, <code>H2L&rarr;DEMP</code>,
+        <code>H3L&rarr;XSMT</code>, <code>H4L&rarr;FMT</code>; each jumper's L pad
+        ties directly to ground; and <strong>all four solder jumpers are
+        open/unbridged</strong>. This is verified physical connectivity, not a
+        powered logic state.</li>
+        <li><strong>Remaining (powered bench check):</strong> unpowered continuity
+        cannot establish operating levels, so the powered FLT/DEMP/XSMT/FMT
+        defaults, the <code>A3V3</code> output voltage, the VIN range, and
+        on-board SCK-to-GND are still open. Per the TI datasheet (behavioral reference,
+        section 13), FMT selects the audio format and XSMT is an active-low
+        soft-mute with an internal pulldown, so an open or floating XSMT would
+        idle muted — but this module's actual powered state is unmeasured. Measure
+        the config pins with the module powered before trusting any level.</li>
       </ul>
     </li>
     <li>
@@ -587,10 +594,11 @@
         <a href="#verified-map">§10.4 verified table</a> is filled for
         BCK/LRCK/DATA accordingly.</li>
         <li><strong>Remaining (hardware-gated):</strong> the verified table's
-        DAC-side <em>straps</em> column and the Phase 3/4 bench run — flashing
-        the example, powering the module, setting FMT=Low + XSMT=High +
-        SCK→GND, and confirming audio — are bench actions, not analysis. No
-        hardware was touched in this round.</li>
+        DAC-side <em>powered-defaults</em> column and the Phase 3/4 bench run —
+        flashing the example, powering the module, measuring the FLT/DEMP/XSMT/FMT
+        defaults and SCK-to-GND, then configuring the module for standard I2S and
+        confirming audio — are bench actions, not analysis. No hardware was
+        powered in this round.</li>
         <li><strong>Next input:</strong> Move 2's strap resolution, then follow
         <a href="#phase-3">Phase 3</a> / <a href="#phase-4">Phase 4</a> with
         stock pin config.</li>
@@ -770,7 +778,8 @@
     <h3 id="phase-2">Phase 2 — Identify the PCM5102A module and prepare bench wiring</h3>
     <p><span class="status status--confirmed">CHIP FACTS CONFIRMED</span>
     <span class="status status--confirmed">MODULE IDENTIFIED</span>
-    <span class="status status--unknown">STRAPS OPEN (bench)</span></p>
+    <span class="status status--confirmed">JUMPER MAP VERIFIED</span>
+    <span class="status status--unknown">POWERED DEFAULTS OPEN (bench)</span></p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Turn &ldquo;a PCM5102A module&rdquo; into a documented part with a
@@ -831,9 +840,9 @@
           <span class="status status--confirmed">BACK</span>
           Config/strap side (user photo, 2026-07-17). Jumpers
           <code>H1L–H4L</code> = FLT / DEMP / XSMT / FMT; variant legend
-          <code>PCM5100 / PCM5101 / PCM5102</code>. Strap-bridge directions are
-          <strong>not resolvable</strong> at 1000&nbsp;px. GPS/EXIF stripped;
-          visible pixels unchanged.
+          <code>PCM5100 / PCM5101 / PCM5102</code>. Jumper-to-pin map and
+          open/unbridged state confirmed by unpowered meter (below), not read off
+          the photo. GPS/EXIF stripped; visible pixels unchanged.
         </figcaption>
       </figure>
     </div>
@@ -843,37 +852,53 @@
     genuine-marked TI/Burr-Brown <strong>PCM5102A</strong>. Labels transcribed:
     I2S header <code>VIN·GND·LCK·DIN·BCK·SCK</code> (LCK ≡ LRCK); config/output
     header <code>FLT·DEMP·XSMT·FMT·A3V3·AGND·ROUT·AGND·LROUT</code>; config
-    jumpers <code>H1L/H2L/H3L/H4L</code> mapping to FLT/DEMP/XSMT/FMT by the
-    module's H-number silkscreen convention (top pad H = 3V3, middle = the pin,
-    bottom L = GND) — consistent with the observed layout, not photo-traced.
-    <strong>Power topology (module-standard, not read off the photo):</strong>
-    the photo shows the <code>VIN / GND / A3V3 / AGND</code> pads and
-    regulation-associated passives, but the regulator part is unreadable; on the
-    GY-PCM5102 design VIN feeds an onboard 3.3&nbsp;V LDO that supplies the chip.
-    The chip's output is TI DirectPath — a ground-centered (≈0&nbsp;V DC-biased)
-    2.1&nbsp;V<sub>RMS</sub> line level on ROUT/LROUT and the 3.5&nbsp;mm jack
-    that needs <strong>no external DC-blocking capacitors</strong> (TI SLAS859C).
-    <strong>Unresolved from the photo (MEASURE):</strong> the <code>A3V3</code>
-    direction (regulator output vs required input) and the accepted VIN range;
-    as a safety default, never back-power the ESP32 from the module's 3V3 pad.</p>
-    <p><strong>Still open (MEASURE — one macro or a meter, not a re-shoot of
-    the same photo):</strong> at 1000&nbsp;px the four <code>H1L–H4L</code>
-    solder bridges read as uniformly tinned, so their <em>direction</em>
-    cannot be called for any of them; the VIN-side LDO part is unreadable, and
-    whether SCK is grounded on-board is not visible. These matter because, per
-    TI (SLAS859C), <strong>FMT must be LOW</strong> for ESP32 standard (Philips)
-    I2S and <strong>XSMT is an active-low soft-mute with an internal
-    pulldown</strong> — a floating or low XSMT stays muted, so the module must
-    actively tie XSMT to 3V3 to un-mute. (Community reports that these purple
-    modules commonly ship with all four jumpers bridged to L, which would mute
-    via XSMT=L; that is a <em>secondary, non-authoritative</em> tendency,
-    <strong>not</strong> a fact about this unit — the photo cannot read the
-    bridges, so this module's strap state is unknown until measured.) Resolve
-    with a full-resolution oblique macro of the jumper block <em>or</em> a bench
-    continuity check of each config pin to 3V3/GND. <strong>Trust the module's
-    own silkscreen and a meter over any generic pinout.</strong></p>
-    <p><strong>Steps</strong> (1–2 complete 2026-07-17; 3 determined from the
-    photo; 4 partially open; 5–6 are bench actions).</p>
+    jumpers <code>H1L/H2L/H3L/H4L</code>.
+    <strong>Verified physical connectivity (unpowered bench meter, 2026-07-17):</strong>
+    each jumper's centre pad reads through to its config pin —
+    <code>H1L&rarr;FLT</code>, <code>H2L&rarr;DEMP</code>,
+    <code>H3L&rarr;XSMT</code>, <code>H4L&rarr;FMT</code> — and each jumper's L pad
+    connects directly to ground. All four visible solder jumpers read
+    <strong>open/unbridged</strong>. By the module's H-number silkscreen
+    convention the middle pad is the config pin, the bottom L pad is GND, and the
+    top H pad is the 3V3 option; only the centre-pad-to-config-pin and
+    L-pad-to-ground connections were meter-checked here — the H-pad-to-3V3 tie was
+    not separately verified. These are resistance/continuity facts taken with the
+    module unpowered; they establish wiring, not operating logic levels.
+    <strong>Power topology (appears consistent with — not verified off the photo
+    or a powered rail):</strong> the photo shows the
+    <code>VIN / GND / A3V3 / AGND</code> pads and regulation-associated passives,
+    but the regulator part is unreadable; the layout <em>appears consistent
+    with</em> the GY-PCM5102 design in which VIN feeds an onboard 3.3&nbsp;V LDO
+    that supplies the PCM5102A — the exact regulator and the accepted VIN range
+    are <strong>not verified</strong>. The chip's output is TI DirectPath — a
+    ground-centered (≈0&nbsp;V DC-biased) 2.1&nbsp;V<sub>RMS</sub> line level on
+    ROUT/LROUT and the 3.5&nbsp;mm jack that needs <strong>no external DC-blocking
+    capacitors</strong> (TI SLAS859C). <strong>Still MEASURE:</strong> the
+    <code>A3V3</code> output voltage (A3V3 is the analog 3.3&nbsp;V supply pin — it
+    exists; its powered voltage is what remains to be read) and, separately, the
+    safe VIN operating range; as a safety default, never back-power the ESP32 from
+    the module's 3V3 pad.</p>
+    <p><strong>Still open (powered MEASURE — a meter on a powered module, not a
+    re-shoot of the same photo):</strong> the jumper topology is now resolved by
+    the unpowered bench meter above (mapped, L pads to ground, all four open), but
+    unpowered continuity does not tell us the powered logic levels. Still to
+    measure with the module powered: the <strong>FLT / DEMP / XSMT / FMT</strong>
+    default levels, the VIN-side regulator behaviour and safe VIN range, and
+    whether <strong>SCK</strong> is grounded on-board. These matter because the TI
+    datasheet is the behavioral reference (section 13): <strong>FMT selects the
+    audio format</strong> (Low = ESP32 standard / Philips I2S) and <strong>XSMT is
+    an active-low soft-mute with an internal pulldown</strong> — an open or low
+    XSMT idles muted, so the module must actively pull XSMT to 3V3 to un-mute.
+    With all four jumpers open on this unit, each config pin follows its internal
+    pull until externally driven — but that is datasheet behaviour, <em>not</em> a
+    measured fact about this module, so confirm every level on the powered bench
+    before trusting it. (This also supersedes the community report that these
+    purple modules ship with all four jumpers bridged to L: on our unit the meter
+    reads them open.) <strong>Trust the module's own silkscreen and a meter over
+    any generic pinout.</strong></p>
+    <p><strong>Steps</strong> (1–2 complete 2026-07-17; 3 cautiously inferred,
+    A3V3 output voltage and VIN range still MEASURE; 4 jumper map verified by
+    meter, powered defaults open; 5–6 are bench actions).</p>
     <ol>
       <li>Photograph the module both sides; transcribe every silkscreen
       label and solder-pad group. <em>(Done — see photos above.)</em></li>
@@ -891,11 +916,13 @@
           module's 3V3 pad.</strong></li>
         </ul>
       </li>
-      <li>Determine each strap pad's state (FLT/DEMP/XSMT/FMT, SCK-to-GND)
-      by reading the module docs and the pads themselves; record them.
-      <em>(Partially open: the pads are located and labelled, but the
-      bridge direction is not readable from the photo — resolve by macro or
-      meter, see &ldquo;Still open&rdquo; above.)</em></li>
+      <li>Determine each config pad's state (FLT/DEMP/XSMT/FMT, SCK-to-GND)
+      by reading the pads and measuring them; record them.
+      <em>(Jumper topology verified by unpowered meter 2026-07-17 —
+      H1L&rarr;FLT, H2L&rarr;DEMP, H3L&rarr;XSMT, H4L&rarr;FMT, all L pads to
+      ground, all four jumpers open. The powered FLT/DEMP/XSMT/FMT defaults and
+      SCK-to-GND remain an open bench check — unpowered continuity does not
+      establish operating levels; see &ldquo;Still open&rdquo; above.)</em></li>
       <li>Prepare the output side: 3.5&nbsp;mm stereo breakout or RCA
       pigtail — LOUT→tip/left-center, ROUT→ring/right-center, module
       GND→sleeve/shields. <em>(Bench.)</em></li>
@@ -903,18 +930,22 @@
       ESP32 until the §10 verified map exists. <em>(Bench.)</em></li>
     </ol>
     <p><strong>Record:</strong> module variant (GY-PCM5102 / PCM5102A); pin
-    labels (transcribed above); supply plan (VIN feeds an onboard 3.3&nbsp;V LDO
-    on this module design — the <code>A3V3</code> direction and VIN range are
-    unresolved from the photo, so treat A3V3 as unknown-until-measured and never
-    back-power the ESP32 from it); photo references
+    labels (transcribed above); verified jumper map (unpowered meter, 2026-07-17 —
+    H1L&rarr;FLT, H2L&rarr;DEMP, H3L&rarr;XSMT, H4L&rarr;FMT; all L pads to
+    ground; all four jumpers open); supply plan (the layout appears consistent
+    with VIN&nbsp;&rarr; onboard 3.3&nbsp;V LDO&nbsp;&rarr; the PCM5102A, but the
+    exact regulator and the VIN range are not verified and the <code>A3V3</code>
+    output voltage is unmeasured, so treat A3V3's voltage as unknown-until-measured
+    and never back-power the ESP32 from it); photo references
     (<code>PCM5102A_front.png</code>, <code>PCM5102A_back.png</code>);
     <span class="status status--unknown">still to record at the bench</span> —
-    the H1L–H4L strap directions, the A3V3 direction / VIN range, and SCK-to-GND.</p>
+    the powered FLT/DEMP/XSMT/FMT defaults, the A3V3 output voltage, the VIN
+    range, and SCK-to-GND.</p>
     <p><strong>Pass:</strong> module documented and its pin labels transcribed
-    into the <a href="#candidate-map">§10 candidate map</a>; power plan has
-    zero assumptions. Remaining before power-up: strap directions confirmed
-    (FMT=Low, XSMT=High, SCK→GND) and the output breakout built — both bench
-    steps.</p>
+    into the <a href="#candidate-map">§10 candidate map</a>; jumper map verified
+    by meter; power plan has zero unstated assumptions. Remaining before power-up:
+    the powered FLT/DEMP/XSMT/FMT defaults and SCK-to-GND measured, the safe VIN
+    range established, and the output breakout built — all bench steps.</p>
     <div class="stop"><p><strong>Stop conditions:</strong> module cannot be
     identified and its pads are ambiguous → do not power it; acquire a
     documented module instead (§9 lists criteria). Never put 5&nbsp;V on any
@@ -1965,12 +1996,14 @@
   (<a href="#phase-2">Phase 2</a>). The three I2S rows are filled with
   <strong>map&nbsp;B</strong>; every <strong>ESP32-side</strong> check passes.
   <strong>One gate remains before wiring or power-up:</strong> the DAC
-  <em>module's own</em> straps (FMT=Low, XSMT=High, SCK→GND) are not yet
-  confirmed — they are unreadable in the photo and need a bench meter check —
-  so the module-strap box stays open. In the &ldquo;Checked against&rdquo;
-  column, <strong>straps</strong> means the <em>ESP32 strapping-pin</em>
-  clearance (§10.2); the separate module-strap gate is tracked in the DAC-power
-  row and Phase&nbsp;2. Do not power the link until that gate is closed.</p>
+  <em>module's own</em> powered config-pin defaults (FLT/DEMP/XSMT/FMT) and
+  SCK-to-GND are not yet measured — the jumper map is verified by meter (all four
+  open), but unpowered continuity does not establish operating levels, so a
+  powered bench check is still needed and the module-config box stays open. In
+  the &ldquo;Checked against&rdquo; column, <strong>straps</strong> means the
+  <em>ESP32 strapping-pin</em> clearance (§10.2); the separate module-config gate
+  is tracked in the DAC-power row and Phase&nbsp;2. Do not power the link until
+  that gate is closed.</p>
   <div class="table-scroll">
     <table>
       <caption>The only wiring-authorized table on this page — blank by
@@ -2014,10 +2047,11 @@
   </div>
   <p class="warning"><strong>Not yet wire-ready.</strong> The ESP32-side pin
   selection above is verified, but two boxes remain open by design — the DAC
-  module straps (FMT=Low, XSMT=High, SCK→GND) and the VIN voltage — and both
-  are bench checks, not analysis. Treat this table as &ldquo;pins chosen and
-  reviewed,&rdquo; not &ldquo;power it up.&rdquo; The buttons rows stay blank
-  until an external-control decision is made (Phase&nbsp;13).</p>
+  module's powered config-pin defaults (FLT/DEMP/XSMT/FMT, plus SCK-to-GND) and
+  the VIN voltage — and both are bench checks, not analysis. Treat this table as
+  &ldquo;pins chosen and reviewed,&rdquo; not &ldquo;power it up.&rdquo; The
+  buttons rows stay blank until an external-control decision is made
+  (Phase&nbsp;13).</p>
 
   <h2 id="tests">11. Test matrices</h2>
   <p>Each matrix is run at the phase that references it; results are
@@ -3000,9 +3034,11 @@ Date: ______   By: ______</code></pre>
           <a href="#phase-2">module</a>)</td>
           <td>Physical PCB revision (T-Display V1.1, FCC ID 2ASYE-T-DISPLAY,
           date 19-6-28), the header-exposed GPIO set read off the back
-          silkscreen, and the PCM5102A carrier identity/labels (GY-PCM5102 with
-          H1L–H4L jumpers). Does <em>not</em> establish IC laser marks (photo
-          resolution) or strap-bridge directions</td>
+          silkscreen, the PCM5102A carrier identity/labels (GY-PCM5102 with
+          H1L–H4L jumpers), and — from an unpowered bench meter (2026-07-17) —
+          the jumper-to-pin map (H1L→FLT, H2L→DEMP, H3L→XSMT, H4L→FMT), all L pads
+          to ground, and all four jumpers open. Does <em>not</em> establish IC
+          laser marks (photo resolution) or the powered config-pin logic levels</td>
         </tr>
         <tr>
           <td><a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">LILYGO
@@ -3059,24 +3095,29 @@ Date: ______   By: ______</code></pre>
           DirectPath line output (no DC-blocking caps, ≥1&nbsp;kΩ loads),
           8–384&nbsp;kHz, 16/24/32-bit, I2S/left-justified formats,
           internal PLL from BCK (no SCK needed), 3.3&nbsp;V analog supply;
-          datasheet: strap-pin functions (FLT, DEMP, XSMT, FMT) —
-          module-level strapping is a Phase 2 bench finding (not readable in
-          the photo). Chip confirmed present as a genuine-marked
-          TI/Burr-Brown PCM5102A on our unit</td>
+          datasheet: strap-pin functions (FLT, DEMP, XSMT, FMT), the behavioral
+          reference (section 13) — the module's jumper map is verified by meter,
+          but its powered config-pin levels remain a Phase 2 bench finding. Chip
+          confirmed present as a genuine-marked TI/Burr-Brown PCM5102A on our
+          unit</td>
         </tr>
         <tr>
           <td>GY-PCM5102 carrier module — its own silkscreen (our photos) plus
           community documentation for this exact board
           (<span class="status status--conditional">SECONDARY</span>; the clone
           carrier has no single authoritative datasheet)</td>
-          <td>Carrier-level convention only, community-reported and
-          <strong>non-authoritative</strong> — none verified for this unit
-          (all MEASURE): FLT/DEMP/XSMT/FMT map to the <code>H1L–H4L</code>
-          jumpers by the module's H-number silkscreen convention (top = 3V3,
-          bottom = GND); a commonly-reported all-L factory default would mute
-          via XSMT=L; SCK is typically grounded on-board for internal-PLL 3-wire
-          mode; VIN typically feeds an onboard 3.3&nbsp;V LDO. The primary XSMT
-          (active-low), DirectPath and PLL facts are cited to TI above, not here</td>
+          <td>Carrier-level convention, now partly confirmed on this unit:
+          the <code>H1L–H4L</code>&rarr;FLT/DEMP/XSMT/FMT centre-pad map and each
+          L-pad-to-ground connection are <strong>verified by our own unpowered
+          meter</strong> (2026-07-17), and the commonly-reported &ldquo;all jumpers
+          bridged to L&rdquo; default is <strong>contradicted here</strong> — our
+          meter reads all four open. The H-pad-to-3V3 side of each jumper follows
+          the silkscreen convention but was not separately meter-verified. Still
+          community-reported and <strong>non-authoritative</strong> (MEASURE on the
+          powered bench): SCK is typically grounded on-board for internal-PLL
+          3-wire mode, and VIN typically feeds an onboard 3.3&nbsp;V LDO. The
+          primary XSMT (active-low), DirectPath and PLL facts are cited to TI
+          above, not here</td>
         </tr>
         <tr>
           <td><a href="https://www.espressif.com/documentation/esp32_datasheet_en.pdf">ESP32
