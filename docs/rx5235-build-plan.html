@@ -664,7 +664,10 @@
         Mac headphone output. With that same cable returned to the PCM5102A,
         the user heard a 60-second 1&nbsp;kHz tone. A3V3 and XSMT both measured
         3.25&nbsp;V, while BCK/LCK/DIN each showed about 1.5&nbsp;V DC average
-        activity during playback. This closes the core end-to-end M2 proof.</li>
+        activity during playback. A powered-speaker retest of the earlier short
+        0.35-volume chimes was not heard; no cause is asserted. The sustained
+        tone closes the core end-to-end M2 proof, while transient/level behavior
+        remains in the extended matrix.</li>
         <li><strong>Remaining Phase 4 qualification:</strong> stereo orientation,
         multi-app, noise, level, and long-run matrix rows. These are not part of
         the completed M2 core proof and remain required before display work.</li>
@@ -1124,7 +1127,9 @@
     Philips-I2S image is flashed; its boot/A2DP/I2S packet path passes; and a
     60-second 1&nbsp;kHz tone was audible through the PCM5102A and a proven
     external AUX speaker/cable. Extended stereo, multi-app, level, noise, and
-    long-run rows below remain before display work.</p>
+    long-run rows below remain before display work; in particular, the earlier
+    short 0.35-volume chimes were not audible in a powered-speaker retest, so
+    transient/level behavior is not represented as qualified.</p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Prove phone → ESP32 → PCM5102A → external amp/speaker end-to-end,
