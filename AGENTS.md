@@ -13,8 +13,10 @@ build/integration plan in
 - Target: **classic ESP32** (`esp32`), chip ESP32-D0WDQ6-V3 rev 3.1, external
   SPI flash (16 MB Winbond), CH9102 USB bridge. Board identity is
   **user-confirmed: LILYGO T-Display Q125 16 MB** (official listing + V18
-  pin table recorded in `docs/hardware.html`); the physical
-  silkscreen/revision photo and the schematic pin review are still pending.
+  pin table recorded in `docs/hardware.html`); the physical silkscreen is now
+  photo-verified (T-Display V1.1, 2019-06-28) and TFT_RST is resolved from the
+  official schematic (GPIO23). The DAC-side strap check and the bench pin
+  sign-off remain.
 - Toolchain: **native ESP-IDF**, version pinned in [`.espidf-version`](.espidf-version).
   All scripts read that file; CI mirrors it in `.github/workflows/ci.yml`.
 - No git remote exists; work lands on **local `main`**. Do not create or

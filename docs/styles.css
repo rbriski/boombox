@@ -289,8 +289,12 @@ dl.kv {
   gap: 0.3rem 1rem;
   margin-block: 0.75rem;
 }
-dl.kv dt { font-weight: 600; }
-dl.kv dd { margin: 0; }
+dl.kv dt { font-weight: 600; min-width: 0; }
+/* min-width:0 lets the grid track shrink below its content's intrinsic width,
+   and overflow-wrap:anywhere lets long unbreakable strings (e.g. file paths /
+   hashes in <code>) wrap instead of forcing a horizontal page scroll on narrow
+   screens. */
+dl.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 540px) {
   dl.kv { grid-template-columns: 1fr; }
   dl.kv dd { margin-bottom: 0.45rem; }
@@ -319,6 +323,46 @@ ul.checklist > li::before {
   display: inline-block;
   min-width: 9rem;
   border-bottom: 1px solid var(--muted);
+}
+
+/* Evidence photos — board/module macros with captions. Shared by the
+   hardware notes and the build plan. A front/back pair sits side-by-side on
+   wide screens and stacks on narrow ones; images never overflow the page. */
+figure.evidence { margin: 1.25rem 0; }
+figure.evidence img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+figure.evidence figcaption {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+figure.evidence figcaption .status { margin-right: 0.35rem; }
+
+.photo-pair {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem 1.25rem;
+  align-items: start;
+  margin-block: 1.25rem;
+}
+.photo-pair figure.evidence { margin: 0; }
+/* Board/module macros are tall portraits; constrain by height so a
+   front/back pair is comparable at a glance and neither image dominates. */
+.photo-pair figure.evidence img {
+  width: auto;
+  max-width: 100%;
+  max-height: 30rem;
+  margin-inline: auto;
+}
+@media (max-width: 540px) {
+  .photo-pair { grid-template-columns: 1fr; }
 }
 
 /* On-page table of contents */
@@ -373,4 +417,9 @@ nav.toc li { break-inside: avoid; }
   pre, table, .note, .warning, .stop, ol.flow > li { break-inside: avoid; }
   .table-scroll { overflow: visible; }
   nav.toc ol { columns: 1; }
+  /* Keep evidence photos on one page and a comfortable size on paper;
+     keep front/back pairs side-by-side. */
+  figure.evidence { break-inside: avoid; }
+  figure.evidence img { border-color: #999999; max-height: 3.4in; width: auto; }
+  .photo-pair { grid-template-columns: 1fr 1fr; }
 }

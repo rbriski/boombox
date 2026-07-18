@@ -386,11 +386,12 @@ scripts/                 # bootstrap / doctor / build</code></pre>
 
   <h2 id="open-items">16. Open items (ordered)</h2>
   <ol>
-    <li><strong>Physically verify the board</strong> — the identity is
-    user-confirmed (T-Display Q125); photos/silkscreen + the schematic pin
-    review remain, per <a href="rx5235-build-plan.html#phase-0">build plan
-    Phase 0</a> and <a href="rx5235-build-plan.html#wiring">§10</a>; this
-    gates all pin work.</li>
+    <li><strong>Physically verify the board</strong> — documentary part done:
+    the silkscreen is photographed (T-Display V1.1, 2019-06-28), TFT_RST is
+    resolved from the schematic (GPIO23), and the header exposure is confirmed,
+    per <a href="rx5235-build-plan.html#phase-0">build plan Phase 0</a> and
+    <a href="rx5235-build-plan.html#wiring">§10</a>. The DAC-side strap check
+    and the bench pin sign-off still gate wiring.</li>
     <li>Partition/OTA layout decision for the confirmed 16 MB flash
     (<a href="#partitions">§10</a>) + coredump partition
     (<a href="#logging">§9</a>).</li>

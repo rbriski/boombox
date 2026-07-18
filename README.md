@@ -4,8 +4,9 @@ Firmware for a LILYGO T-Display (classic ESP32) — the future "Digital Tape"
 module of a Panasonic RX-5235 boombox. The chip is measured
 (ESP32-D0WDQ6-V3 rev 3.1, dual-core 240 MHz, 16 MB external flash,
 CH9102 USB bridge at `/dev/cu.usbserial-5B1F0057851`) and the board identity
-is **user-confirmed: LILYGO T-Display Q125 16 MB** via the official product
-listing recorded in [`docs/hardware.html`](docs/hardware.html). The firmware
+is **user-confirmed: LILYGO T-Display Q125 16 MB** — now also corroborated by
+the board's own silkscreen (T-Display V1.1, photographed 2026-07-17) — recorded
+in [`docs/hardware.html`](docs/hardware.html). The firmware
 stays deliberately board-neutral — console UART only, no GPIO — until each
 pin assignment is verified against the official Q125/V18 pinout, schematic,
 boot straps, header exposure, and onboard functions. The full build and

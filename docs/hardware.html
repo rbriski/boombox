@@ -62,18 +62,71 @@
   flash option, and a 1.14&Prime; ST7789/ST7789V IPS TFT, 135&times;240,
   4-wire SPI, 3.3&nbsp;V. Every point corroborates the measured facts above
   (classic ESP32 die, CH9102, Winbond 16&nbsp;MB).</p>
-  <p>What this does <em>not</em> establish: the physical PCB revision of our
-  unit beyond what the product page's &ldquo;V18&rdquo; pin table implies.
-  Photographing the silkscreen and pulling the official schematic are the
-  first open items of the
+  <p>As of 2026-07-17 the physical PCB is also directly verified: both sides
+  were photographed and the silkscreen reads <strong>MODEL: T-DISPLAY V1.1</strong>,
+  <code>FCC ID 2ASYE-T-DISPLAY</code>, PCB date <strong>19-6-28</strong>
+  (2019-06-28), <code>XY-CP</code> — so the physical revision is
+  <strong>V1.1</strong>, and the official schematic has been read to resolve
+  the one open pin (TFT_RST = GPIO23, below). The photos and the schematic
+  close the first open items of the
   <a href="rx5235-build-plan.html#phase-0">build plan's Phase 0</a>.</p>
+
+  <h3 id="board-photos">Board photos — our unit (2026-07-17)</h3>
+  <p>Both sides of the attached board, filed here as the hardware record.
+  <strong>Source &amp; handling:</strong> user photographs, 2026-07-17; GPS and
+  camera EXIF were stripped before committing (the phone had embedded a precise
+  location fix), and the visible pixels are byte-for-byte unchanged. These are
+  the primary evidence for the board revision and for the header-exposed GPIO
+  set.</p>
+  <div class="photo-pair">
+    <figure class="evidence">
+      <img src="lilygo_front.png" width="1000" height="1918"
+           alt="Front (component side) of the LILYGO T-Display board. The top
+           silkscreen reads LILYGO with UKCA, CE and FCC marks, FCC ID
+           2ASYE-T-DISPLAY, and MODEL: T-DISPLAY V1.1. A 48-pin QFN ESP32 sits
+           at centre beside a 40.000 MHz crystal and a SOIC-8 flash chip; the
+           PCB is dated 19-6-28 with V1.1 and XY-CP. Header rows run down both
+           long edges.">
+      <figcaption>
+        <span class="status status--confirmed">FRONT</span>
+        Component side. Silkscreen: <code>LILYGO</code>,
+        <code>FCC ID 2ASYE-T-DISPLAY</code>, <code>MODEL: T-DISPLAY V1.1</code>,
+        <code>19-6-28</code> / <code>V1.1</code> / <code>XY-CP</code>;
+        <code>40.000 MHz</code> crystal. User photo 2026-07-17, GPS/EXIF
+        stripped, pixels unchanged.
+      </figcaption>
+    </figure>
+    <figure class="evidence">
+      <img src="lilygo_back.png" width="1000" height="2041"
+           alt="Back (display side) of the LILYGO T-Display board, photographed
+           rotated 180 degrees so a TTGO label reads upside-down. A USB-C
+           connector sits at the top flanked by two tactile buttons and a slide
+           power switch; a 1.14-inch IPS TFT fills the centre. The two header
+           rows are silkscreened with GPIO numbers: one edge reads 5V, GND, 27,
+           26, 25, 33, 32, 39, 38, 37, 36, 3V3; the other reads 3V3, GND, GND,
+           12, 13, 15, 2, 17, 22, 21, GND, GND.">
+      <figcaption>
+        <span class="status status--confirmed">BACK</span>
+        Display side (<code>TTGO</code> label, shown rotated). Header GPIOs read
+        directly: left edge 5V·GND·27·26·25·33·32·39·38·37·36·3V3; right edge
+        3V3·GND·GND·12·13·15·2·17·22·21·GND·GND. User photo 2026-07-17,
+        GPS/EXIF stripped, pixels unchanged.
+      </figcaption>
+    </figure>
+  </div>
+  <p>Exposed GPIO set (from the back silkscreen):
+  <code>{2, 12, 13, 15, 17, 21, 22, 25, 26, 27, 32, 33, 36, 37, 38, 39}</code>
+  plus 5V, 3V3, GND — the exact complement of the board-consumed pins in the
+  V18 table below. The SoC, flash, and USB-UART die marks are not legible at
+  this resolution, so those part numbers rest on the read-only probes above,
+  not on the photos.</p>
 
   <h3 id="pinmap">Official T-Display V18 pin table</h3>
   <p>From the product page's V18 table, corroborated by the official
   <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO/TTGO-T-Display</a>
   repository (which also hosts the schematic, factory-test firmware, board
-  files, and 3D files) — with one recorded discrepancy that must be resolved
-  from the schematic, not by picking a favorite:</p>
+  files, and 3D files). The one prior discrepancy — TFT_RST — is now
+  <strong>resolved from the official schematic</strong> (GPIO23):</p>
   <div class="table-scroll">
     <table>
       <caption>Onboard functions and their GPIOs per the official V18 table</caption>
@@ -85,10 +138,13 @@
         <tr><td>TFT_SCLK</td><td>18</td><td>Display SPI — reserved</td></tr>
         <tr><td>TFT_CS</td><td>5</td><td>Reserved; GPIO5 is also a classic-ESP32 strapping pin</td></tr>
         <tr><td>TFT_DC</td><td>16</td><td>Reserved</td></tr>
-        <tr><td>TFT_RST</td><td><strong>product page: N/A · repo README: 23</strong></td>
-        <td><span class="status status--unknown">UNKNOWN / MEASURE</span> —
-        consult the official schematic / physical revision before relying on
-        TFT reset <em>or</em> treating GPIO23 as free</td></tr>
+        <tr><td>TFT_RST</td><td><strong>23</strong> (resolved from schematic)</td>
+        <td><span class="status status--confirmed">CONFIRMED</span> — the
+        official schematic
+        <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display/blob/master/schematic/ESP32-TFT(6-26).pdf">ESP32-TFT(6-26).pdf</a>
+        wires display RESET to GPIO23 (repo README agrees; the product-page
+        &ldquo;N/A&rdquo; is a catalog omission). GPIO23 is consumed by the
+        display reset — not free — and is off-header on our unit</td></tr>
         <tr><td>TFT_BL (backlight)</td><td>4</td><td>Reserved</td></tr>
         <tr><td>I2C_SDA</td><td>21</td><td>Header I2C label — only free if I2C is forgone</td></tr>
         <tr><td>I2C_SCL</td><td>22</td><td>Header I2C label — same caveat</td></tr>
@@ -130,22 +186,31 @@
   <p>The original checklist asked for silkscreen photos, module marking,
   visible peripherals, or the product listing. <strong>Resolution: the user
   provided the official product listing</strong> (item 4 of the original
-  list), recorded above. Remaining physical follow-ups, tracked as
-  <a href="rx5235-build-plan.html#phase-0">build plan Phase 0</a>:</p>
+  list), recorded above, and — as of 2026-07-17 — the physical follow-ups
+  below are also <strong>complete</strong> (tracked as
+  <a href="rx5235-build-plan.html#phase-0">build plan Phase 0</a>):</p>
   <ol>
-    <li>Photograph both sides of the PCB; record the silkscreen text and any
-    revision marking.</li>
-    <li>Fetch the official schematic from the
+    <li><span class="status status--confirmed">DONE</span> Photograph both
+    sides of the PCB; record the silkscreen text and any revision marking —
+    <strong>T-Display V1.1</strong>, FCC ID 2ASYE-T-DISPLAY, 19-6-28
+    (<a href="#board-photos">photos above</a>).</li>
+    <li><span class="status status--confirmed">DONE</span> Read the official
+    schematic from the
     <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO
-    repository</a>; resolve the TFT_RST discrepancy.</li>
-    <li>Confirm which GPIOs the physical headers actually expose.</li>
+    repository</a>; resolve the TFT_RST discrepancy — <strong>GPIO23</strong>.</li>
+    <li><span class="status status--confirmed">DONE</span> Confirm which GPIOs
+    the physical headers actually expose —
+    <code>{2, 12, 13, 15, 17, 21, 22, 25, 26, 27, 32, 33, 36, 37, 38, 39}</code>
+    plus 5V, 3V3, GND.</li>
   </ol>
   <p>Record: board model = <strong>LILYGO T-Display (classic ESP32)</strong>,
   variant = <strong>Q125, 16&nbsp;MB, no shell</strong>, official pages =
   <a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">product
   listing</a> +
   <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">repository</a>;
-  physical revision = ______ (pending Phase 0 photos).</p>
+  physical revision = <strong>V1.1</strong> (silkscreen, 2026-07-17). The one
+  remaining physical confirmation — a continuity check of the display RESET pad
+  to GPIO23 — is a bench step, not an identification blocker.</p>
 
   <h2 id="safety">Safe-workflow rules for this device</h2>
   <ul>

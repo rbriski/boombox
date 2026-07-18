@@ -235,12 +235,13 @@
   carrier is now identified (user-confirmed LILYGO T-Display Q125 16&nbsp;MB;
   official V18 pin table recorded in the
   <a href="hardware.html#board">hardware notes</a>), which narrows the
-  boundary but does not remove it: one pin is disputed between official
-  sources (TFT_RST), and header exposure on our physical unit is
-  unverified. Firmware still must not cross the boundary — no GPIO
-  configuration, no peripheral bring-up beyond UART0, no partition-layout
-  changes — until the <a href="rx5235-build-plan.html#wiring">build plan §10
-  pin review</a> fills the verified assignment table.</p>
+  boundary but does not remove it. As of 2026-07-17 the once-disputed pin is
+  resolved (TFT_RST = GPIO23, from the official schematic) and the header
+  exposure is confirmed from the board photos; what still gates firmware is the
+  DAC-side strap check and the bench sign-off. Firmware still must not cross the
+  boundary — no GPIO configuration, no peripheral bring-up beyond UART0, no
+  partition-layout changes — until the <a href="rx5235-build-plan.html#wiring">build
+  plan §10 pin review</a> fills the verified assignment table.</p>
 
   <h2 id="references">Deep-dive references</h2>
   <ul>

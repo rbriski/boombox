@@ -206,14 +206,23 @@
           classic ESP32, CH9102</strong> — see the
           <a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">official
           product page</a> and <a href="hardware.html#board">hardware
-          notes</a>. Product-page &ldquo;V18&rdquo; pin table applies
-          conditionally to our unit until the silkscreen is photographed.</td>
+          notes</a>. The product-page &ldquo;V18&rdquo; pin table now applies
+          to our physical unit: the 2026-07-17 silkscreen (T-Display&nbsp;V1.1)
+          and the photographed header labels both match it. Wiring still waits
+          on the <a href="#wiring">§10</a> pin review, not on identity.</td>
         </tr>
         <tr>
           <td>Physical unit silkscreen / revision photo</td>
-          <td><span class="status status--unknown">UNKNOWN / MEASURE</span></td>
-          <td>Not yet photographed. Move&nbsp;1 of
-          <a href="#next">the next three moves</a>.</td>
+          <td><span class="status status--confirmed">CONFIRMED</span></td>
+          <td>Both sides photographed 2026-07-17; privacy-stripped copies filed
+          in the <a href="hardware.html#board-photos">hardware notes</a>. Front
+          silkscreen reads <strong>MODEL:&nbsp;T-DISPLAY&nbsp;V1.1</strong>,
+          <code>FCC&nbsp;ID&nbsp;2ASYE-T-DISPLAY</code>, PCB artwork date
+          <strong>19-6-28</strong> (2019-06-28), <code>XY-CP</code> — the
+          physical PCB revision is <strong>V1.1</strong>, corroborating the
+          Q125 identity with no contradiction (the <a href="#phase-0">Phase&nbsp;0</a>
+          stop condition is not triggered). Header-exposed GPIOs were read
+          directly from the back silkscreen (<a href="#phase-0">Phase&nbsp;0</a>).</td>
         </tr>
         <tr>
           <td>Factory flash backup</td>
@@ -244,17 +253,30 @@
         <tr>
           <td>Pin-dependent firmware work</td>
           <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
-          <td>Blocked on the pin conflict review against the official
-          schematic (<a href="#wiring">§10</a>). The firmware remains
-          board-neutral (console UART only, zero GPIO) until then.</td>
+          <td>The documentary pin-conflict review has advanced: candidate I2S
+          map&nbsp;B (BCK&nbsp;26 / LRCK&nbsp;27 / DATA&nbsp;25) is confirmed
+          conflict-free on this unit against the official schematic and the
+          photographed header (<a href="#verified-map">§10.4</a>). Firmware
+          still stays board-neutral (console UART only, zero GPIO) until the
+          DAC-side strap check and the bench A2DP/DAC test close the remaining
+          hardware gates (<a href="#wiring">§10</a>).</td>
         </tr>
         <tr>
           <td>PCM5102A module variant</td>
-          <td><span class="status status--unknown">UNKNOWN / MEASURE</span></td>
-          <td>Chip facts are CONFIRMED from TI documentation
-          (<a href="#audio-design">§13</a>); the specific carrier module's
-          silkscreen, power topology, and strap pads are not identified.
-          Move&nbsp;2 of <a href="#next">the next three moves</a>.</td>
+          <td><span class="status status--confirmed">MODULE IDENTIFIED</span>
+          <span class="status status--unknown">STRAPS / MEASURE</span></td>
+          <td>Photographed both sides 2026-07-17 (<a href="#phase-2">Phase&nbsp;2</a>).
+          It is the purple <strong>GY-PCM5102</strong> shared-PCB module
+          (PCM5100/5101/5102 selection legend) populated with a genuine-marked
+          TI/Burr-Brown <strong>PCM5102A</strong>; power is the module-standard
+          VIN&nbsp;&rarr; onboard 3.3&nbsp;V LDO&nbsp;&rarr; chip with a
+          ground-centered line output (TI DirectPath — no DC-blocking caps). Chip
+          facts stay CONFIRMED from TI docs (<a href="#audio-design">§13</a>).
+          Open (MEASURE): the H1L–H4L strap-bridge directions are not resolvable
+          at the photo resolution, and the <code>A3V3</code> direction, the VIN
+          range and on-board SCK grounding are unread — a bench continuity check
+          (confirm FMT=Low, XSMT=High, SCK→GND) remains (Move&nbsp;2,
+          <a href="#next">§7</a>).</td>
         </tr>
         <tr>
           <td>RX-5235 internals (rails, selector, dimensions)</td>
@@ -291,12 +313,15 @@
       <span class="flow-detail">runs A2DP sink + AVRCP + UI; ST7789 1.14&Prime;
       135&times;240 display in the cassette window</span></li>
     <li>I2S digital audio (BCK / LRCK / DIN, 3-wire)
-      <span class="flow-detail">pins CONDITIONAL until the §10 schematic
-      review; APLL-clocked standard mode, 44.1&nbsp;kHz 16-bit stereo</span></li>
+      <span class="flow-detail">candidate map&nbsp;B (26 / 27 / 25) passed the
+      §10 schematic + photographed-header review on this unit; final bench
+      sign-off pending. APLL-clocked standard mode, 44.1&nbsp;kHz 16-bit
+      stereo</span></li>
     <li>PCM5102A stereo DAC module
       <span class="flow-detail">chip CONFIRMED: 2.1&nbsp;V<sub>RMS</sub>
       ground-centered line output, internal PLL from BCK (no SCK wire);
-      module variant UNKNOWN / MEASURE</span></li>
+      module identified as the purple GY-PCM5102 carrier — strap state still
+      MEASURE</span></li>
     <li class="flow-unknown">Attenuation / isolation network
       <span class="flow-detail"><span class="status status--unknown">UNKNOWN /
       MEASURE</span> — series/shunt values are hypotheses until the RX-5235
@@ -341,8 +366,10 @@
           <td>Board physically verified + pin review done (backup already
           exists)</td>
           <td><span class="status">IN PROGRESS</span> — backup, toolchain,
-          smoke flash, and product identity are done; silkscreen photos and
-          the §10 pin review remain</td>
+          smoke flash, and product identity are done; silkscreen photographed
+          (T-Display V1.1) and TFT_RST resolved (GPIO23); the §10.4 DAC rows
+          are filled on the ESP32 side. Remaining: the module strap check and
+          the bench sign-off of the verified pin table</td>
           <td>none</td>
           <td>Silkscreen photos; schematic-resolved TFT_RST; filled
           <a href="#verified-map">verified pin table</a></td>
@@ -363,7 +390,8 @@
           <th scope="row">M2</th>
           <td>Phone audio plays via PCM5102A into an external amp</td>
           <td><span class="status status--blocked">BLOCKED / HOLD</span> —
-          awaits M1 + DAC module identification</td>
+          awaits M1 (the DAC module is now identified; strap check + bench
+          remain)</td>
           <td>M1; <a href="#phase-2">Phase 2</a>, <a href="#phase-4">Phase 4</a></td>
           <td><a href="#test-audio">Audio test matrix</a> rows pass; noise
           notes recorded</td>
@@ -479,28 +507,95 @@
   </div>
 
   <h2 id="next">7. Next three moves</h2>
-  <p>Honest to today's state — the backup exists, the toolchain works, the
-  smoke app is flashed, and the board's product identity is confirmed. What
-  remains before any wire moves:</p>
+  <p>A truthful current-state dashboard, honest to 2026-07-17. The backup
+  exists, the toolchain works, the smoke app is flashed, the board's product
+  identity is confirmed, and — new this round — <strong>both the T-Display
+  board and the PCM5102A module have been photographed and read</strong>
+  (privacy-stripped copies: <a href="hardware.html#board-photos">board front/back</a>
+  · <a href="#phase-2">module front/back</a>). That evidence advances all three
+  moves; each move below states what is <em>done</em>, what <em>remains</em>,
+  and the exact <em>next input</em> — separating documentary progress from the
+  hardware-gated steps the photos cannot settle.</p>
   <ol>
-    <li><strong>Photograph and physically verify the board.</strong> Both
-    sides, good light. Confirm the silkscreen says T-Display and note any
-    revision marking. Pull the official schematic from the
-    <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO/TTGO-T-Display</a>
-    repository and resolve the TFT_RST discrepancy (product page says N/A,
-    repository README says GPIO23 — <a href="#wiring">§10</a>). Record the
-    header-exposed pins. This completes the open half of
-    <a href="#phase-0">Phase 0</a>.</li>
-    <li><strong>Identify the exact PCM5102A module.</strong> Photograph it,
-    read the silkscreen, find its documentation, and determine its power
-    topology and strap-pad state (<a href="#phase-2">Phase 2</a>). Chip facts
-    are known; <em>module</em> behavior is not.</li>
-    <li><strong>Run the pin conflict review, then build the bench A2DP/DAC
-    test.</strong> Fill the <a href="#verified-map">verified assignment
-    table</a> from moves 1–2, then follow <a href="#phase-3">Phase 3</a> /
-    <a href="#phase-4">Phase 4</a> (the v6.0.2 example is
-    <code>a2dp_sink_stream</code>; its stock I2S defaults are BCK&nbsp;26,
-    LRCK&nbsp;27, DATA&nbsp;25 — candidate map B).</li>
+    <li>
+      <p><strong>Photograph and physically verify the board.</strong>
+      <span class="status status--confirmed">EVIDENCE COMPLETE</span>
+      <span class="status status--unknown">1 BENCH ITEM OPEN</span></p>
+      <ul>
+        <li><strong>Done:</strong> both sides shot in good light; silkscreen
+        reads <strong>T-Display V1.1</strong>, <code>FCC ID 2ASYE-T-DISPLAY</code>,
+        PCB date <strong>19-6-28</strong>, <code>XY-CP</code> — no contradiction
+        with the Q125 identity. The only published T-Display schematic
+        (<a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display/blob/master/schematic/ESP32-TFT(6-26).pdf">ESP32-TFT(6-26).pdf</a>,
+        2019-06-26 artwork — consistent with, not proof of, this PCB's 19-6-28)
+        was read and <strong>TFT_RST resolves to GPIO23</strong> — the product page's
+        &ldquo;N/A&rdquo; is a catalog omission (<a href="#v18-map">§10.1</a>).
+        The <strong>header-exposed GPIO set</strong> was read directly off the
+        back silkscreen and cross-checks the V18 table (<a href="#phase-0">Phase 0</a>).</li>
+        <li><strong>Remaining (hardware):</strong> the RST-to-23 trace runs on
+        an inner layer and GPIO23 is not broken out to a header, so the photos
+        cannot prove it on <em>this</em> board — the schematic is the arbiter,
+        and a continuity check (display RESET pad ↔ ESP32 GPIO23) is the only
+        physical proof.</li>
+        <li><strong>Next input:</strong> none needed to proceed — Phase 0's
+        documentary half is complete; the continuity check is an optional
+        Phase 3/4 bench confirmation, not a blocker.</li>
+      </ul>
+    </li>
+    <li>
+      <p><strong>Identify the exact PCM5102A module.</strong>
+      <span class="status status--confirmed">MODULE IDENTIFIED</span>
+      <span class="status status--unknown">STRAPS UNREAD</span></p>
+      <ul>
+        <li><strong>Done:</strong> photographed both sides. It is the purple
+        <strong>GY-PCM5102</strong> shared-PCB module (PCM5100/5101/5102
+        selection legend) populated with a genuine-marked TI/Burr-Brown
+        <strong>PCM5102A</strong>; every I2S/config/output label transcribed;
+        power is the module-standard VIN&nbsp;&rarr; onboard 3.3&nbsp;V
+        LDO&nbsp;&rarr; chip with a ground-centered line-out — the exact LDO,
+        the <code>A3V3</code> direction and the VIN range stay MEASURE
+        (<a href="#phase-2">Phase 2</a>).</li>
+        <li><strong>Remaining:</strong> the four config solder-jumpers
+        <code>H1L–H4L</code> (FLT&nbsp;/&nbsp;DEMP&nbsp;/&nbsp;XSMT&nbsp;/&nbsp;FMT)
+        read as uniformly tinned at the 1000-px photo resolution — the bridge
+        <em>direction</em> (3V3 vs GND) is not readable, and the LDO part and
+        on-board SCK-to-GND are likewise unconfirmed.</li>
+        <li><strong>Next input needed (either one):</strong> a full-resolution,
+        oblique-lit macro of the <code>H1L–H4L</code> block (plus the VIN-side
+        LDO and the SCK pad); <em>or</em> a bench continuity check of each
+        config pin to 3V3/GND. Either resolves the straps — and the bench check
+        is required before audio regardless, because XSMT is an active-low mute
+        with an internal pulldown (TI), so any low or floating XSMT stays muted.
+        (A commonly-reported all-L factory default would mute via XSMT=L, but
+        that is a secondary, non-authoritative tendency — this unit's strap
+        state is unknown until measured.)</li>
+      </ul>
+    </li>
+    <li>
+      <p><strong>Run the pin conflict review, then build the bench A2DP/DAC
+      test.</strong>
+      <span class="status status--confirmed">REVIEW: DAC PINS PASS</span>
+      <span class="status status--blocked">BENCH TEST GATED</span></p>
+      <ul>
+        <li><strong>Done (documentary):</strong> candidate map&nbsp;B —
+        BCK&nbsp;26, LRCK&nbsp;27, DATA&nbsp;25 (the v6.0.2
+        <code>a2dp_sink_stream</code> defaults) — was checked against the
+        schematic, the photographed header, the input-only list, and the
+        strapping-pin list: all three pins are exposed, physically adjacent on
+        the left header, output-capable, non-strapping, and not board-consumed.
+        <strong>No onboard conflict on this unit.</strong> The
+        <a href="#verified-map">§10.4 verified table</a> is filled for
+        BCK/LRCK/DATA accordingly.</li>
+        <li><strong>Remaining (hardware-gated):</strong> the verified table's
+        DAC-side <em>straps</em> column and the Phase 3/4 bench run — flashing
+        the example, powering the module, setting FMT=Low + XSMT=High +
+        SCK→GND, and confirming audio — are bench actions, not analysis. No
+        hardware was touched in this round.</li>
+        <li><strong>Next input:</strong> Move 2's strap resolution, then follow
+        <a href="#phase-3">Phase 3</a> / <a href="#phase-4">Phase 4</a> with
+        stock pin config.</li>
+      </ul>
+    </li>
   </ol>
   <p class="note">A full flash backup already exists and is verified —
   <strong>do not take another &ldquo;first&rdquo; backup</strong>; verify the
@@ -516,7 +611,8 @@
   <section class="phase">
     <h3 id="phase-0">Phase 0 — Verify the physical board against the confirmed identity</h3>
     <p><span class="status status--confirmed">IDENTITY CONFIRMED</span>
-    <span class="status status--unknown">PHYSICAL VERIFY OPEN</span></p>
+    <span class="status status--confirmed">DOCUMENTARY VERIFY COMPLETE</span>
+    <span class="status status--unknown">TRACE CONTINUITY OPEN (bench)</span></p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Anchor every later pin decision to the actual unit in hand, not to
@@ -531,9 +627,10 @@
       <dt>Rollback</dt>
       <dd>n/a — nothing is modified.</dd>
       <dt>Artifacts</dt>
-      <dd>Board photos (both sides), schematic PDF copy, updated
-      <a href="hardware.html#board">hardware notes</a> and
-      <a href="#verified-map">§10 verified pin table</a>.</dd>
+      <dd>Board photos (both sides, privacy-stripped —
+      <a href="hardware.html#board-photos">hardware notes</a>), the cited
+      official schematic, updated <a href="hardware.html#board">hardware
+      notes</a> and <a href="#verified-map">§10 verified pin table</a>.</dd>
       <dt>Feeds</dt>
       <dd>Every pin-dependent phase (3, 5, 6) and the wiring tables.</dd>
     </dl>
@@ -545,24 +642,65 @@
     Winbond 16&nbsp;MB flash, BT&nbsp;4.2 + BLE). The product page's
     &ldquo;V18&rdquo; pin table is recorded in <a href="#v18-map">§10</a>.
     The silicon-vs-carrier distinction stays deliberate: the die facts are
-    measured; the product identity is user-confirmed and corroborated; the
-    <em>physical PCB revision</em> is not yet established beyond what the
-    V18 table implies.</p>
-    <p><strong>Steps.</strong></p>
+    measured; the product identity is user-confirmed and corroborated; and the
+    <em>physical PCB revision</em> is now established as <strong>V1.1</strong>
+    from the 2026-07-17 silkscreen photos (Evidence, below).</p>
+    <div class="note">
+      <p><strong>Evidence recorded (2026-07-17).</strong> Documentary steps
+      1–6 below are complete. Full-resolution photos of both sides, with the
+      transcription and privacy-sanitization record, are in the
+      <a href="hardware.html#board-photos">hardware notes</a>. Highlights:</p>
+      <ul>
+        <li><strong>Silkscreen (directly legible):</strong> front —
+        <code>LILYGO®</code>, <code>FCC ID 2ASYE-T-DISPLAY</code>,
+        <code>MODEL: T-DISPLAY V1.1</code>, PCB block <code>19-6-28</code> /
+        <code>V1.1</code> / <code>XY-CP</code>, a <code>40.000 MHz</code>
+        crystal; back — a <code>TTGO</code> label and the two 12-pin header
+        rows. No contradiction with the T-Display / Q125 identity.</li>
+        <li><strong>Schematic (primary arbiter):</strong> the official repo
+        publishes exactly one T-Display schematic,
+        <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display/blob/master/schematic/ESP32-TFT(6-26).pdf">ESP32-TFT(6-26).pdf</a>;
+        that, plus the board's own <code>T-Display V1.1</code> self-ID, makes it
+        the applicable official schematic for this product (its 2019-06-26
+        artwork sits two days before this PCB's 19-6-28 date — corroborating
+        colour, not proof of an exact revision match). Its display connector
+        wires <strong>TFT_RST to GPIO23</strong> — resolving the product page's
+        &ldquo;N/A&rdquo; vs the repo README's GPIO23 in favour of
+        <strong>GPIO23</strong> (<a href="#v18-map">§10.1</a>). GPIO23 is
+        therefore <em>consumed</em> by the display reset and is not free for
+        reuse — though it is moot for the DAC, being off-header.</li>
+        <li><strong>Header-exposed GPIOs (read off the back silkscreen):</strong>
+        <code>{2, 12, 13, 15, 17, 21, 22, 25, 26, 27, 32, 33, 36, 37, 38,
+        39}</code> plus 5V, 3V3, and GND. This set is the exact complement of
+        the V18 board-consumed pins — none of the TFT pins (4, 5, 16, 18, 19,
+        23), buttons (0, 35), battery-ADC (34), ADC-enable (14), or flash pins
+        (6–11) appear on a header. The physical unit therefore corroborates the
+        official V18 table.</li>
+        <li><strong>Inference vs direct evidence:</strong> the SoC laser mark,
+        the SOIC-8 flash body mark, and the USB-UART bridge mark are
+        <em>not</em> legible at the photo resolution — <code>ESP32-D0WDQ6-V3</code>,
+        <code>W25Q128 (16 MB)</code>, and <code>CH9102</code> rest on the
+        read-only <code>esptool</code>/USB probes and the product page, not on a
+        readable die mark (see <a href="hardware.html#verified">hardware notes</a>).</li>
+      </ul>
+    </div>
+    <p><strong>Steps (documentary steps 1–6 complete 2026-07-17; results in
+    Evidence above).</strong></p>
     <ol>
       <li>Photograph both sides of the board in good light; file the photos
       with the project record (<a href="#acceptance">§18</a>).</li>
       <li>Read the silkscreen. Expect <code>T-Display</code> (or
       <code>TTGO T-Display</code>) plus a revision mark; record exactly what
       it says, including nothing.</li>
-      <li>Fetch the official schematic PDF from the
+      <li>Cite the official schematic PDF in the
       <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO/TTGO-T-Display</a>
       repository (it also carries factory-test firmware, board files, and 3D
-      files) and keep a local copy with the project record.</li>
+      files) as the pin-map arbiter; keep an offline copy with the project
+      record if bench work will run without a network.</li>
       <li>From the schematic, resolve <strong>TFT_RST</strong>: the current
       product page lists N/A while the repository README lists GPIO23. Do not
       silently pick one — record what the schematic shows and which physical
-      revision it applies to.</li>
+      revision it applies to. <em>(Resolved: GPIO23.)</em></li>
       <li>From the schematic plus the physical header, list which GPIOs are
       actually exposed on the two header rows, and which are consumed by
       display, buttons, and the ADC power circuit
@@ -571,17 +709,21 @@
       notes</a> and fill <a href="#verified-map">the verified pin table</a>
       only with what the schematic + physical unit support.</li>
     </ol>
-    <p><strong>Record:</strong> silkscreen text verbatim, revision marks,
-    module-can marking if any, header pin count, schematic file name/source
-    URL and its stated revision.</p>
-    <p><strong>Pass:</strong> photos on file; silkscreen consistent with
-    T-Display; TFT_RST resolved from the schematic; header exposure list
-    written; verified pin table started.</p>
+    <p><strong>Record:</strong> silkscreen text verbatim (T-Display V1.1,
+    FCC ID 2ASYE-T-DISPLAY, 19-6-28, XY-CP); header GPIO set (16 signals +
+    power/GND); schematic file name/source URL (ESP32-TFT(6-26).pdf) and its
+    2019-06 artwork date.</p>
+    <p><strong>Pass (met):</strong> photos on file; silkscreen consistent with
+    T-Display; TFT_RST resolved from the schematic (GPIO23); header exposure
+    list written; verified pin table started (<a href="#verified-map">§10.4</a>).
+    Remaining physical confirmation — a continuity check of the display RESET
+    pad to GPIO23 — is an optional bench step, not a documentary blocker.</p>
     <div class="stop"><p><strong>Stop condition:</strong> if the silkscreen
     or schematic contradicts the T-Display identification, halt all
     pin-dependent planning, mark the board identity UNKNOWN again, and
     re-identify before proceeding. Keep work read-only (UART, esptool probes)
-    meanwhile.</p></div>
+    meanwhile. <em>(Not triggered: the silkscreen and schematic both
+    corroborate the identity.)</em></p></div>
   </section>
 
   <section class="phase">
@@ -627,7 +769,8 @@
   <section class="phase">
     <h3 id="phase-2">Phase 2 — Identify the PCM5102A module and prepare bench wiring</h3>
     <p><span class="status status--confirmed">CHIP FACTS CONFIRMED</span>
-    <span class="status status--unknown">MODULE UNKNOWN / MEASURE</span></p>
+    <span class="status status--confirmed">MODULE IDENTIFIED</span>
+    <span class="status status--unknown">STRAPS OPEN (bench)</span></p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Turn &ldquo;a PCM5102A module&rdquo; into a documented part with a
@@ -644,8 +787,9 @@
       <dt>Rollback</dt>
       <dd>Unplug — breadboard only.</dd>
       <dt>Artifacts</dt>
-      <dd>Module photos, its documentation link/copy, a filled power-topology
-      note, and the wiring plan merged into <a href="#candidate-map">§10</a>.</dd>
+      <dd>Module photos (both sides, privacy-stripped — below), its
+      documentation links, a filled power-topology note, and the wiring plan
+      merged into <a href="#candidate-map">§10</a>.</dd>
       <dt>Feeds</dt>
       <dd>Phases 3–4; the attenuator design in §13.</dd>
     </dl>
@@ -658,20 +802,84 @@
     PLL that generates the system clock from BCK — so v1 uses a
     <strong>3-wire I2S connection (BCK, LRCK/WS, DIN)</strong> with no MCLK
     wire.</p>
-    <p><strong>Module unknowns (MEASURE):</strong> variant/silkscreen,
-    whether VCC feeds an onboard regulator, whether a separate 3V3 pad is an
-    input or a regulator <em>output</em>, and how the four config pins
-    (FLT, DEMP, XSMT, FMT — per the TI datasheet) are strapped: on common
-    modules they sit on solder pads or pulls; some ship XSMT (soft mute,
-    active low) needing a tie-high, and SCK is usually grounded on-board for
-    PLL mode. <strong>Trust the module's own silkscreen/docs over any
-    generic pinout.</strong></p>
-    <p><strong>Steps.</strong></p>
+    <div class="photo-pair">
+      <figure class="evidence">
+        <img src="PCM5102A_front.png" width="1000" height="1614"
+             alt="Front (component side) of the purple GY-PCM5102 module. The
+             top I2S header is labelled, left to right: VIN, GND, LCK, DIN, BCK,
+             SCK. A central TSSOP chip is laser-marked PCM5102A with the
+             Burr-Brown logo, 54T, and lot code ASH1G4. A 220 resistor array
+             sits beside the digital-input pins; a 3.5 mm stereo line-out jack
+             and G, R, G, L output pads run along the bottom edge.">
+        <figcaption>
+          <span class="status status--confirmed">FRONT</span>
+          PCM5102A module, component side (user photo, 2026-07-17). I2S header
+          <code>VIN·GND·LCK·DIN·BCK·SCK</code>; chip marked
+          <code>PCM5102A</code> / Burr-Brown / <code>54T</code> /
+          <code>ASH1G4</code>. GPS/EXIF stripped; visible pixels unchanged.
+        </figcaption>
+      </figure>
+      <figure class="evidence">
+        <img src="PCM5102A_back.png" width="1000" height="1665"
+             alt="Back (config side) of the GY-PCM5102 module. The I2S header is
+             labelled SCK, BCK, DIN, LRCK, GND, VIN. A left-edge config/output
+             header is labelled top to bottom: FLT, DEMP, XSMT, FMT, A3V3, AGND,
+             ROUT, AGND, LROUT. Four three-pad solder jumpers are labelled H1L,
+             H2L, H3L, H4L, and a silkscreen legend reads PCM5100 / PCM5101 /
+             PCM5102 with a selection pad under each.">
+        <figcaption>
+          <span class="status status--confirmed">BACK</span>
+          Config/strap side (user photo, 2026-07-17). Jumpers
+          <code>H1L–H4L</code> = FLT / DEMP / XSMT / FMT; variant legend
+          <code>PCM5100 / PCM5101 / PCM5102</code>. Strap-bridge directions are
+          <strong>not resolvable</strong> at 1000&nbsp;px. GPS/EXIF stripped;
+          visible pixels unchanged.
+        </figcaption>
+      </figure>
+    </div>
+    <p><strong>Module identified (2026-07-17):</strong> the ubiquitous purple
+    <strong>GY-PCM5102</strong> shared-PCB I2S DAC module (one board covers
+    PCM5100/5101/5102 via the selection legend), populated with a
+    genuine-marked TI/Burr-Brown <strong>PCM5102A</strong>. Labels transcribed:
+    I2S header <code>VIN·GND·LCK·DIN·BCK·SCK</code> (LCK ≡ LRCK); config/output
+    header <code>FLT·DEMP·XSMT·FMT·A3V3·AGND·ROUT·AGND·LROUT</code>; config
+    jumpers <code>H1L/H2L/H3L/H4L</code> mapping to FLT/DEMP/XSMT/FMT by the
+    module's H-number silkscreen convention (top pad H = 3V3, middle = the pin,
+    bottom L = GND) — consistent with the observed layout, not photo-traced.
+    <strong>Power topology (module-standard, not read off the photo):</strong>
+    the photo shows the <code>VIN / GND / A3V3 / AGND</code> pads and
+    regulation-associated passives, but the regulator part is unreadable; on the
+    GY-PCM5102 design VIN feeds an onboard 3.3&nbsp;V LDO that supplies the chip.
+    The chip's output is TI DirectPath — a ground-centered (≈0&nbsp;V DC-biased)
+    2.1&nbsp;V<sub>RMS</sub> line level on ROUT/LROUT and the 3.5&nbsp;mm jack
+    that needs <strong>no external DC-blocking capacitors</strong> (TI SLAS859C).
+    <strong>Unresolved from the photo (MEASURE):</strong> the <code>A3V3</code>
+    direction (regulator output vs required input) and the accepted VIN range;
+    as a safety default, never back-power the ESP32 from the module's 3V3 pad.</p>
+    <p><strong>Still open (MEASURE — one macro or a meter, not a re-shoot of
+    the same photo):</strong> at 1000&nbsp;px the four <code>H1L–H4L</code>
+    solder bridges read as uniformly tinned, so their <em>direction</em>
+    cannot be called for any of them; the VIN-side LDO part is unreadable, and
+    whether SCK is grounded on-board is not visible. These matter because, per
+    TI (SLAS859C), <strong>FMT must be LOW</strong> for ESP32 standard (Philips)
+    I2S and <strong>XSMT is an active-low soft-mute with an internal
+    pulldown</strong> — a floating or low XSMT stays muted, so the module must
+    actively tie XSMT to 3V3 to un-mute. (Community reports that these purple
+    modules commonly ship with all four jumpers bridged to L, which would mute
+    via XSMT=L; that is a <em>secondary, non-authoritative</em> tendency,
+    <strong>not</strong> a fact about this unit — the photo cannot read the
+    bridges, so this module's strap state is unknown until measured.) Resolve
+    with a full-resolution oblique macro of the jumper block <em>or</em> a bench
+    continuity check of each config pin to 3V3/GND. <strong>Trust the module's
+    own silkscreen and a meter over any generic pinout.</strong></p>
+    <p><strong>Steps</strong> (1–2 complete 2026-07-17; 3 determined from the
+    photo; 4 partially open; 5–6 are bench actions).</p>
     <ol>
       <li>Photograph the module both sides; transcribe every silkscreen
-      label and solder-pad group.</li>
+      label and solder-pad group. <em>(Done — see photos above.)</em></li>
       <li>Identify the variant (commonly sold as GY-PCM5102) and locate its
-      documentation; save a copy with the project record.</li>
+      documentation; save a copy with the project record. <em>(Done —
+      GY-PCM5102 / PCM5102A; see <a href="#sources">sources</a>.)</em></li>
       <li>Determine the power topology:
         <ul>
           <li>Module has only <code>VCC</code> rated 3.3–5&nbsp;V → plan to
@@ -684,18 +892,29 @@
         </ul>
       </li>
       <li>Determine each strap pad's state (FLT/DEMP/XSMT/FMT, SCK-to-GND)
-      by reading the module docs and the pads themselves; record them.</li>
+      by reading the module docs and the pads themselves; record them.
+      <em>(Partially open: the pads are located and labelled, but the
+      bridge direction is not readable from the photo — resolve by macro or
+      meter, see &ldquo;Still open&rdquo; above.)</em></li>
       <li>Prepare the output side: 3.5&nbsp;mm stereo breakout or RCA
       pigtail — LOUT→tip/left-center, ROUT→ring/right-center, module
-      GND→sleeve/shields.</li>
+      GND→sleeve/shields. <em>(Bench.)</em></li>
       <li>Dry-fit breadboard wiring with short leads; do not connect to the
-      ESP32 until the §10 verified map exists.</li>
+      ESP32 until the §10 verified map exists. <em>(Bench.)</em></li>
     </ol>
-    <p><strong>Record:</strong> module variant, pad states, chosen supply
-    plan, photo references.</p>
-    <p><strong>Pass:</strong> module documented; power plan has zero
-    assumptions; output breakout ready; §10 candidate map annotated with the
-    module's actual pin labels.</p>
+    <p><strong>Record:</strong> module variant (GY-PCM5102 / PCM5102A); pin
+    labels (transcribed above); supply plan (VIN feeds an onboard 3.3&nbsp;V LDO
+    on this module design — the <code>A3V3</code> direction and VIN range are
+    unresolved from the photo, so treat A3V3 as unknown-until-measured and never
+    back-power the ESP32 from it); photo references
+    (<code>PCM5102A_front.png</code>, <code>PCM5102A_back.png</code>);
+    <span class="status status--unknown">still to record at the bench</span> —
+    the H1L–H4L strap directions, the A3V3 direction / VIN range, and SCK-to-GND.</p>
+    <p><strong>Pass:</strong> module documented and its pin labels transcribed
+    into the <a href="#candidate-map">§10 candidate map</a>; power plan has
+    zero assumptions. Remaining before power-up: strap directions confirmed
+    (FMT=Low, XSMT=High, SCK→GND) and the output breakout built — both bench
+    steps.</p>
     <div class="stop"><p><strong>Stop conditions:</strong> module cannot be
     identified and its pads are ambiguous → do not power it; acquire a
     documented module instead (§9 lists criteria). Never put 5&nbsp;V on any
@@ -1601,10 +1820,12 @@
   the official
   <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">TTGO-T-Display
   repository</a> README. Status:
-  <span class="status status--confirmed">CONFIRMED for V18</span> —
-  application to our physical unit is
-  <span class="status status--conditional">CONDITIONAL</span> until Phase 0
-  photographs the silkscreen.</p>
+  <span class="status status--confirmed">CONFIRMED for V18</span> and, as of
+  the 2026-07-17 <a href="hardware.html#board-photos">board photos</a>,
+  <span class="status status--confirmed">CONFIRMED for our unit</span> — the
+  T-Display&nbsp;V1.1 silkscreen and the photographed header labels both match
+  this table. Individual pins still pass the <a href="#verified-map">§10.4</a>
+  review before any wiring.</p>
   <div class="table-scroll">
     <table>
       <caption>Pins the board itself consumes (never available for the DAC or
@@ -1620,12 +1841,16 @@
         strapping pin (timing of SDIO; safe as used by the board, but do not
         repurpose)</td></tr>
         <tr><td>TFT_DC</td><td>16</td><td>Data/command</td></tr>
-        <tr><td>TFT_RST</td><td><strong>N/A vs 23 — unresolved</strong></td>
-        <td><span class="status status--unknown">UNKNOWN / MEASURE</span> —
-        the product page's V18 table says N/A; the official repository README
-        says GPIO23. Resolve from the official schematic in Phase 0 before
-        relying on TFT reset <em>or</em> treating GPIO23 as free. Do not
-        silently pick one.</td></tr>
+        <tr><td>TFT_RST</td><td><strong>23</strong> (resolved)</td>
+        <td><span class="status status--confirmed">CONFIRMED</span> — the
+        official schematic
+        <a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display/blob/master/schematic/ESP32-TFT(6-26).pdf">ESP32-TFT(6-26).pdf</a>
+        wires the display RESET (connector pin P1.6) to <strong>GPIO23</strong>,
+        and the repo README agrees; the product page's &ldquo;N/A&rdquo; is a
+        catalog-table omission. GPIO23 is therefore <strong>consumed</strong> by
+        the display reset — do not treat it as free. It is off-header on our
+        unit (so never an I2S candidate); a continuity check is the only
+        per-board proof.</td></tr>
         <tr><td>TFT_BL (backlight)</td><td>4</td><td>PWM-able backlight
         control</td></tr>
         <tr><td>I2C_SDA</td><td>21</td><td>Header I2C label — free only if
@@ -1680,10 +1905,15 @@
 
   <h3 id="candidate-map">10.3 Candidate I2S maps — CONDITIONAL, for the Phase 0 review</h3>
   <p><span class="status status--conditional">CONDITIONAL</span> — both maps
-  assume the V18 table applies, that the pins are exposed on our unit's
-  headers (verify from schematic + physical header), and that the
-  schematic review finds no onboard conflict. <strong>Neither map is
-  approved for wiring.</strong></p>
+  assume the V18 table applies and that the pins survive the schematic + header
+  review. As of the 2026-07-17 <a href="hardware.html#board-photos">board
+  photo</a> the header exposure is <strong>confirmed</strong>: every
+  map&nbsp;B pin (25 / 26 / 27) is broken out on the left header, adjacent,
+  and non-conflicting — so map&nbsp;B has been promoted into the
+  <a href="#verified-map">§10.4 verified table</a> for BCK/LRCK/DATA, with
+  map&nbsp;A retained only as a fallback. <strong>Wiring still waits on the
+  DAC-side strap check and bench validation</strong>: do not wire from this
+  candidate table — wire only from §10.4.</p>
   <div class="table-scroll">
     <table>
       <caption>Candidate pin assignments for the 3-wire I2S link to the
@@ -1729,10 +1959,18 @@
   require the Phase 0 schematic/header check.</p>
 
   <h3 id="verified-map">10.4 Verified assignment table (fill only from the Phase 0 review)</h3>
-  <p>Filled only after: silkscreen photographed, schematic fetched, TFT_RST
-  resolved, header exposure confirmed, strap/input-only review done, and the
-  DAC module's actual pin labels known (Phase 2). Until every row is filled
-  and signed, all wiring stays on hold.</p>
+  <p>Filled from the 2026-07-17 review: silkscreen photographed, schematic
+  read, TFT_RST resolved (GPIO23), header exposure confirmed, ESP32
+  strapping/input-only review done, and the DAC module's pin labels known
+  (<a href="#phase-2">Phase 2</a>). The three I2S rows are filled with
+  <strong>map&nbsp;B</strong>; every <strong>ESP32-side</strong> check passes.
+  <strong>One gate remains before wiring or power-up:</strong> the DAC
+  <em>module's own</em> straps (FMT=Low, XSMT=High, SCK→GND) are not yet
+  confirmed — they are unreadable in the photo and need a bench meter check —
+  so the module-strap box stays open. In the &ldquo;Checked against&rdquo;
+  column, <strong>straps</strong> means the <em>ESP32 strapping-pin</em>
+  clearance (§10.2); the separate module-strap gate is tracked in the DAC-power
+  row and Phase&nbsp;2. Do not power the link until that gate is closed.</p>
   <div class="table-scroll">
     <table>
       <caption>The only wiring-authorized table on this page — blank by
@@ -1747,18 +1985,18 @@
         </tr>
       </thead>
       <tbody>
-        <tr><th scope="row">BCK</th><td><span class="blank"></span></td>
-        <td><span class="blank"></span></td>
-        <td>schematic ☐ · straps ☐ · header ☐ · onboard use ☐</td>
-        <td><span class="blank"></span></td></tr>
-        <tr><th scope="row">LRCK / WS</th><td><span class="blank"></span></td>
-        <td><span class="blank"></span></td>
-        <td>schematic ☐ · straps ☐ · header ☐ · onboard use ☐</td>
-        <td><span class="blank"></span></td></tr>
-        <tr><th scope="row">DATA (DIN)</th><td><span class="blank"></span></td>
-        <td><span class="blank"></span></td>
-        <td>schematic ☐ · straps ☐ · header ☐ · onboard use ☐</td>
-        <td><span class="blank"></span></td></tr>
+        <tr><th scope="row">BCK</th><td><strong>GPIO26</strong></td>
+        <td>BCK</td>
+        <td>schematic ☑ · straps ☑ · header ☑ · onboard use ☑</td>
+        <td>Doc review, 2026-07-17 (ESP32 side)</td></tr>
+        <tr><th scope="row">LRCK / WS</th><td><strong>GPIO27</strong></td>
+        <td>LCK (LRCK)</td>
+        <td>schematic ☑ · straps ☑ · header ☑ · onboard use ☑</td>
+        <td>Doc review, 2026-07-17 (ESP32 side)</td></tr>
+        <tr><th scope="row">DATA (DIN)</th><td><strong>GPIO25</strong></td>
+        <td>DIN</td>
+        <td>schematic ☑ · straps ☑ · header ☑ · onboard use ☑</td>
+        <td>Doc review, 2026-07-17 (ESP32 side)</td></tr>
         <tr><th scope="row">Button 1 (if external)</th>
         <td><span class="blank"></span></td><td>—</td>
         <td>schematic ☐ · straps ☐ · pull-up plan ☐</td>
@@ -1768,12 +2006,18 @@
         <td>schematic ☐ · straps ☐ · pull-up plan ☐</td>
         <td><span class="blank"></span></td></tr>
         <tr><th scope="row">DAC power</th><td>—</td>
-        <td><span class="blank"></span></td>
-        <td>module docs ☐ · voltage verified ☐</td>
-        <td><span class="blank"></span></td></tr>
+        <td>VIN (→ onboard 3.3&nbsp;V LDO)</td>
+        <td>module docs ☑ · voltage verified ☐ (bench)</td>
+        <td>Topology from photo, 2026-07-17</td></tr>
       </tbody>
     </table>
   </div>
+  <p class="warning"><strong>Not yet wire-ready.</strong> The ESP32-side pin
+  selection above is verified, but two boxes remain open by design — the DAC
+  module straps (FMT=Low, XSMT=High, SCK→GND) and the VIN voltage — and both
+  are bench checks, not analysis. Treat this table as &ldquo;pins chosen and
+  reviewed,&rdquo; not &ldquo;power it up.&rdquo; The buttons rows stay blank
+  until an external-control decision is made (Phase&nbsp;13).</p>
 
   <h2 id="tests">11. Test matrices</h2>
   <p>Each matrix is run at the phase that references it; results are
@@ -2703,23 +2947,31 @@ Date: ______   By: ______</code></pre>
         <tr><td>Machine</td><td>Panasonic RX-5235, serial:
         <span class="blank"></span></td></tr>
         <tr><td>Board (verified Phase 0)</td><td>LILYGO T-Display Q125
-        16&nbsp;MB — silkscreen/revision: <span class="blank"></span></td></tr>
+        16&nbsp;MB — silkscreen/revision: <strong>T-Display V1.1</strong>,
+        FCC ID 2ASYE-T-DISPLAY, PCB date 19-6-28 (2026-07-17 photos,
+        <a href="hardware.html#board-photos">hardware notes</a>)</td></tr>
         <tr><td>DAC module (verified Phase 2)</td>
-        <td><span class="blank"></span></td></tr>
+        <td>GY-PCM5102 shared-PCB module, TI/Burr-Brown PCM5102A
+        (<a href="#phase-2">Phase 2 photos</a>); H1L–H4L straps to confirm at
+        the bench</td></tr>
         <tr><td>Firmware version/tag at close</td>
         <td><span class="blank"></span></td></tr>
         <tr><td>Factory backup path + SHA-256</td>
         <td>see <a href="#snapshot">§4</a>; copies:
         <span class="blank"></span></td></tr>
         <tr><td>Verified pin map</td><td>§10.4 as filled, date:
-        <span class="blank"></span></td></tr>
+        BCK/LRCK/DATA = 26/27/25, 2026-07-17 (ESP32 side); module straps +
+        bench sign-off pending</td></tr>
         <tr><td>Injection node + attenuation values</td>
         <td><span class="blank"></span></td></tr>
         <tr><td>Power tap point, measured rail, fuse value</td>
         <td><span class="blank"></span></td></tr>
         <tr><td>Ground join point</td><td><span class="blank"></span></td></tr>
         <tr><td>Key → function map</td><td><span class="blank"></span></td></tr>
-        <tr><td>Photo archive location</td><td><span class="blank"></span></td></tr>
+        <tr><td>Photo archive location</td><td><code>docs/</code> in this repo:
+        <code>lilygo_front.png</code>, <code>lilygo_back.png</code>,
+        <code>PCM5102A_front.png</code>, <code>PCM5102A_back.png</code>
+        (privacy-stripped; visible pixels unchanged)</td></tr>
         <tr><td>Decision log location</td><td>§16.4, kept at:
         <span class="blank"></span></td></tr>
         <tr><td>Dates: first opened / injected / powered / closed</td>
@@ -2729,9 +2981,12 @@ Date: ______   By: ______</code></pre>
   </div>
 
   <h2 id="sources">19. Source register</h2>
-  <p>Primary sources only, checked 2026-07-17. Claims in this plan link to
-  these inline; anything a primary source could not establish is marked
-  UNKNOWN / MEASURE in place.</p>
+  <p>Primary sources first, checked 2026-07-17; our own board and module photos
+  are direct primary evidence. The one unavoidable secondary reference — the
+  generic GY-PCM5102 clone carrier, which has no single authoritative datasheet
+  — is marked as such, and its DAC chip facts are cited to the primary TI
+  documentation instead. Claims in this plan link to these inline; anything a
+  primary source could not establish is marked UNKNOWN / MEASURE in place.</p>
   <div class="table-scroll">
     <table>
       <caption>What each source establishes for this plan</caption>
@@ -2740,19 +2995,41 @@ Date: ______   By: ______</code></pre>
       </thead>
       <tbody>
         <tr>
+          <td>Our unit — board &amp; module photos, both sides, 2026-07-17
+          (direct evidence; <a href="hardware.html#board-photos">board</a>,
+          <a href="#phase-2">module</a>)</td>
+          <td>Physical PCB revision (T-Display V1.1, FCC ID 2ASYE-T-DISPLAY,
+          date 19-6-28), the header-exposed GPIO set read off the back
+          silkscreen, and the PCM5102A carrier identity/labels (GY-PCM5102 with
+          H1L–H4L jumpers). Does <em>not</em> establish IC laser marks (photo
+          resolution) or strap-bridge directions</td>
+        </tr>
+        <tr>
           <td><a href="https://lilygo.cc/en-us/products/t-display?variant=42159376466101">LILYGO
           T-Display product page (variant 42159376466101, &ldquo;16MB
           [Q125]&rdquo;)</a> — user-supplied</td>
           <td>Board product identity (classic ESP32, CH9102, BT&nbsp;4.2 +
           BLE, 16&nbsp;MB option), ST7789/ST7789V 1.14&Prime; 135&times;240
-          display, the V18 pin table (§10.1), TFT_RST listed N/A</td>
+          display, the V18 pin table (§10.1). Its TFT_RST &ldquo;N/A&rdquo; is
+          a catalog omission, superseded by the schematic (GPIO23, next row)</td>
         </tr>
         <tr>
           <td><a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display">Xinyuan-LilyGO/TTGO-T-Display
           repository</a> (official)</td>
-          <td>Corroborating pin table with TFT_RST GPIO23 (the recorded
-          discrepancy), official schematic/board/3D files, factory-test
-          firmware — the Phase 0 arbiter</td>
+          <td>README pin table listing TFT_RST = GPIO23 (independently fetched
+          2026-07-17), display ST7789, plus the official schematic/board/3D
+          files and factory-test firmware</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/Xinyuan-LilyGO/TTGO-T-Display/blob/master/schematic/ESP32-TFT(6-26).pdf">Official
+          schematic <code>ESP32-TFT(6-26).pdf</code></a> (primary — the Phase&nbsp;0
+          arbiter)</td>
+          <td>Display connector wiring from the only published T-Display
+          schematic (2019-06-26 artwork — consistent with, not proof of, this
+          PCB's V1.1 / 19-6-28): TFT_RST = <strong>GPIO23</strong> (connector
+          P1.6 RESET), MOSI 19, SCLK 18, D/C 16, CS 5, backlight from GPIO4 via
+          transistor; controller ST7789.
+          <strong>Resolves the TFT_RST discrepancy in favour of GPIO23.</strong></td>
         </tr>
         <tr>
           <td><a href="https://github.com/espressif/esp-idf/tree/v6.0.2/examples/bluetooth/bluedroid/classic_bt">ESP-IDF
@@ -2783,7 +3060,23 @@ Date: ______   By: ______</code></pre>
           8–384&nbsp;kHz, 16/24/32-bit, I2S/left-justified formats,
           internal PLL from BCK (no SCK needed), 3.3&nbsp;V analog supply;
           datasheet: strap-pin functions (FLT, DEMP, XSMT, FMT) —
-          module-level strapping remains a Phase 2 finding</td>
+          module-level strapping is a Phase 2 bench finding (not readable in
+          the photo). Chip confirmed present as a genuine-marked
+          TI/Burr-Brown PCM5102A on our unit</td>
+        </tr>
+        <tr>
+          <td>GY-PCM5102 carrier module — its own silkscreen (our photos) plus
+          community documentation for this exact board
+          (<span class="status status--conditional">SECONDARY</span>; the clone
+          carrier has no single authoritative datasheet)</td>
+          <td>Carrier-level convention only, community-reported and
+          <strong>non-authoritative</strong> — none verified for this unit
+          (all MEASURE): FLT/DEMP/XSMT/FMT map to the <code>H1L–H4L</code>
+          jumpers by the module's H-number silkscreen convention (top = 3V3,
+          bottom = GND); a commonly-reported all-L factory default would mute
+          via XSMT=L; SCK is typically grounded on-board for internal-PLL 3-wire
+          mode; VIN typically feeds an onboard 3.3&nbsp;V LDO. The primary XSMT
+          (active-low), DirectPath and PLL facts are cited to TI above, not here</td>
         </tr>
         <tr>
           <td><a href="https://www.espressif.com/documentation/esp32_datasheet_en.pdf">ESP32
