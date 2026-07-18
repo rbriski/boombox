@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M1 — USB-only Bluetooth bring-up — Boombox</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header>
+  <p class="brand"><a href="index.html">Boombox docs</a></p>
+  <nav aria-label="Documentation">
+    <a href="index.html">Index</a>
+    <a href="setup-research.html">Setup research</a>
+    <a href="hardware.html">Hardware</a>
+    <a href="chip-architecture.html">Chip architecture</a>
+    <a href="rx5235-build-plan.html">RX-5235 plan</a>
+  </nav>
+</header>
+<main id="main">
+  <h1>Milestone M1 — USB-only Bluetooth bring-up</h1>
+  <p><strong>Last verified:</strong> 2026-07-17 ·
+  <span class="status">Bench execution plan</span> ·
+  <strong>Repo state:</strong> documentation only — this page changes no
+  firmware, wiring, or hardware. The repository app is still the board-neutral
+  smoke app; the M1 A2DP work below has <strong>not</strong> been executed.</p>
+  <p class="lede">A single-session, bench-usable plan to prove <em>one</em>
+  thing: the ESP32 T-Display advertises as a Bluetooth speaker, a phone
+  discovers and connects to it, and the serial monitor shows the A2DP
+  audio-stream state — using nothing but the board and a USB cable. It is the
+  detailed expansion of
+  <a href="rx5235-build-plan.html#m1">milestone M1</a> /
+  <a href="rx5235-build-plan.html#phase-3">Phase 3</a> in the main build plan.</p>
+
+  <p class="stop"><strong>The PCM5102A DAC is not needed for M1. Leave it
+  disconnected and unpowered.</strong> M1 is a <em>transport</em> proof, not an
+  audio-output test. The reference firmware is configured to <em>discard</em>
+  the decoded audio, so no I2S pins, no DAC, no amplifier, and no speaker are
+  involved. Everything about sound begins at
+  <a href="rx5235-build-plan.html#phase-4">Phase 4 / M2</a>.</p>
+
+  <nav class="toc" aria-labelledby="toc-heading">
+    <h2 id="toc-heading">On this page</h2>
+    <ol>
+      <li><a href="#objective">Objective, done, and non-goals</a></li>
+      <li><a href="#gates">Dependency &amp; gate table</a></li>
+      <li><a href="#baseline">Current verified baseline</a></li>
+      <li><a href="#equipment">Required &amp; excluded equipment</a></li>
+      <li><a href="#preflight">Safety &amp; go/no-go preflight</a></li>
+      <li><a href="#strategy">Firmware strategy &amp; config delta</a></li>
+      <li><a href="#commands">Preparation &amp; command sequence</a></li>
+      <li><a href="#procedure">Bench procedure</a></li>
+      <li><a href="#evidence">Test &amp; evidence checklist</a></li>
+      <li><a href="#troubleshoot">Troubleshooting decision tree</a></li>
+      <li><a href="#rollback">Stop conditions &amp; rollback</a></li>
+      <li><a href="#handoff">Completion &amp; M1&rarr;M2 handoff</a></li>
+      <li><a href="#timing">Time &amp; pause points</a></li>
+      <li><a href="#sources">Evidence &amp; sources</a></li>
+    </ol>
+  </nav>
+
+  <section aria-labelledby="objective">
+    <h2 id="objective">1. Objective, definition of done, and non-goals</h2>
+    <dl class="kv">
+      <dt>Objective</dt>
+      <dd>Flash Espressif's pinned reference A2DP-sink example — configured to
+      discard audio — and prove the Bluetooth link end to end: the device is
+      discoverable, a phone pairs and connects, and the serial log shows the
+      A2DP connection and audio-stream state.</dd>
+      <dt>Milestone</dt>
+      <dd>M1 (<a href="rx5235-build-plan.html#m1">dashboard</a> ·
+      <a href="rx5235-build-plan.html#phase-3">Phase 3</a>). Delivers the
+      &ldquo;ESP32 advertises as a Bluetooth speaker&rdquo; gate.</dd>
+      <dt>Definition of done</dt>
+      <dd>All of: (a) the monitor shows the Bluetooth stack initialise and
+      A2DP init complete; (b) the phone lists the device by name and pairs;
+      (c) the monitor logs <code>A2DP connection state: Connected</code> with
+      the phone's MAC; (d) starting playback logs
+      <code>A2DP audio state: Started</code> and a rising
+      <code>Audio packet count</code>; (e) a clean disconnect and reconnect are
+      observed; (f) the evidence in <a href="#evidence">§9</a> is captured. No
+      sound is expected or required.</dd>
+      <dt>Non-goals</dt>
+      <dd>Audible output, any I2S/DAC/amp/speaker work, GPIO configuration,
+      display bring-up, AVRCP button control, power/enclosure work, and opening
+      the boombox. These are later milestones and must not be attempted here.</dd>
+      <dt>Not &ldquo;done&rdquo;</dt>
+      <dd>M1 is a plan that has not been run. Passing it proves the transport
+      only; it does <strong>not</strong> mean any audio path works.</dd>
+    </dl>
+  </section>
+
+  <section aria-labelledby="gates">
+    <h2 id="gates">2. Dependency &amp; gate table</h2>
+    <p>M1 needs a small, already-satisfied slice of the M0 baseline. It does
+    <strong>not</strong> need the DAC-side pin review, because the firmware is
+    configured to output nothing — zero GPIO, in full compliance with the
+    repo's verified-pin rule
+    (<a href="hardware.html#safety">hardware safety</a>,
+    <a href="../AGENTS.md">AGENTS.md</a> HARD RULE&nbsp;1). The pin review still
+    gates the DAC wiring, which is M2's problem, not M1's.</p>
+    <div class="table-scroll">
+      <table>
+        <caption>What M1 depends on, and what it explicitly does not</caption>
+        <thead>
+          <tr>
+            <th scope="col">Item</th>
+            <th scope="col">M1 needs it?</th>
+            <th scope="col">Status</th>
+            <th scope="col">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Verified full-flash backup (outside repo)</th>
+            <td>Yes</td>
+            <td><span class="status status--confirmed">DONE — verify hash</span></td>
+            <td>Rollback safety; the deliberate flash overwrites the smoke app.
+            Re-verify the recorded SHA-256, don't take a new &ldquo;first&rdquo;
+            backup (<a href="rx5235-build-plan.html#snapshot">plan §4</a>,
+            <a href="rx5235-build-plan.html#restore">§16</a>).</td>
+          </tr>
+          <tr>
+            <th scope="row">Pinned ESP-IDF toolchain healthy</th>
+            <td>Yes</td>
+            <td><span class="status status--confirmed">DONE</span></td>
+            <td><code>scripts/doctor.sh</code> passes; the example builds in the
+            pinned v6.0.2 environment.</td>
+          </tr>
+          <tr>
+            <th scope="row">Board is a classic-ESP32 with Classic Bluetooth</th>
+            <td>Yes</td>
+            <td><span class="status status--confirmed">CONFIRMED</span></td>
+            <td>T-Display Q125 is classic ESP32 with Bluetooth&nbsp;4.2 + BLE —
+            Classic BT/A2DP is present
+            (<a href="hardware.html#board">hardware §board</a>).</td>
+          </tr>
+          <tr>
+            <th scope="row">Direct, data-capable USB link + known serial port</th>
+            <td>Yes</td>
+            <td><span class="status status--confirmed">READY — rediscover port</span></td>
+            <td>The one physical dependency: a data USB cable (no hub) and the
+            CH9102 port, rediscovered each session
+            (<a href="hardware.html#safety">hardware §safety</a>).</td>
+          </tr>
+          <tr>
+            <th scope="row">DAC-side I2S pin review (§10.4 powered defaults)</th>
+            <td><strong>No</strong></td>
+            <td><span class="status status--blocked">Not required for M1</span></td>
+            <td>The M1 build configures <em>no</em> I2S pins (Idle output), so
+            the pin review does not gate it. It still gates
+            <a href="rx5235-build-plan.html#phase-4">M2</a>.</td>
+          </tr>
+          <tr>
+            <th scope="row">PCM5102A module: power, FLT/DEMP/XSMT/FMT, wiring</th>
+            <td><strong>No</strong></td>
+            <td><span class="status status--blocked">M2 / Phase 4 only</span></td>
+            <td>No DAC is connected or powered in M1. Its
+            <a href="rx5235-build-plan.html#phase-2">identification</a> and
+            powered checks belong to M2.</td>
+          </tr>
+          <tr>
+            <th scope="row">Phase&nbsp;2 &ldquo;know the DAC's expected format&rdquo;</th>
+            <td><strong>No</strong></td>
+            <td><span class="status status--blocked">M2 / Phase 4 only</span></td>
+            <td>The stream is discarded, not formatted for a DAC. Corrects the
+            earlier over-gating that made Phase&nbsp;2 an M1 prerequisite.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note"><strong>Net gate:</strong> M1 is <strong>READY to run</strong>
+    — the only remaining step is the bench session itself. No non-DAC gate is
+    outstanding; the DAC gates are real but belong to M2.</p>
+  </section>
+
+  <section aria-labelledby="baseline">
+    <h2 id="baseline">3. Current verified baseline</h2>
+    <p>These facts are cross-linked from the hardware record rather than
+    restated as new claims — trust the source pages, not this summary, if they
+    ever diverge.</p>
+    <div class="table-scroll">
+      <table>
+        <caption>Baseline this plan builds on (all established read-only)</caption>
+        <thead>
+          <tr><th scope="col">Fact</th><th scope="col">Value</th><th scope="col">Source</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Board</td>
+          <td>LILYGO T-Display, classic ESP32, variant Q125 16&nbsp;MB;
+          physical rev V1.1</td>
+          <td><a href="hardware.html#board">hardware §board</a></td></tr>
+          <tr><td>SoC</td>
+          <td>ESP32-D0WDQ6-V3 rev 3.1, dual-core Xtensa LX6, Bluetooth 4.2 +
+          BLE (Classic BT present)</td>
+          <td><a href="hardware.html#verified">hardware §measured</a>,
+          <a href="chip-architecture.html">chip architecture</a></td></tr>
+          <tr><td>USB&ndash;UART bridge</td>
+          <td>WCH CH9102 (VID:PID <code>1a86:55d4</code>); serial console
+          115200&nbsp;8N1 on UART0</td>
+          <td><a href="hardware.html#verified">hardware §measured</a></td></tr>
+          <tr><td>Serial port (observed)</td>
+          <td><code>/dev/cu.usbserial-5B1F0057851</code> — an observation, not a
+          constant; rediscover with <code>ls /dev/cu.*</code> each session</td>
+          <td><a href="hardware.html#safety">hardware §safety</a></td></tr>
+          <tr><td>Toolchain</td>
+          <td>Native ESP-IDF, pinned in <code>.espidf-version</code> =
+          <strong>v6.0.2</strong>; <code>scripts/doctor.sh</code> /
+          <code>scripts/build.sh</code> pass</td>
+          <td><a href="setup-research.html#version-pin">setup research §3</a></td></tr>
+          <tr><td>Current firmware</td>
+          <td>Board-neutral smoke app (console UART only, zero GPIO); factory
+          demo already overwritten <em>after</em> a verified full backup</td>
+          <td><a href="rx5235-build-plan.html#snapshot">plan §4 snapshot</a></td></tr>
+          <tr><td>Backup / rollback</td>
+          <td>Full pre-write flash image preserved outside the repo with path,
+          size, and SHA-256 recorded; restore procedure documented</td>
+          <td><a href="rx5235-build-plan.html#restore">plan §16 restore</a></td></tr>
+          <tr><td>Serial-transfer caveat</td>
+          <td>CH9102 bulk transfers are unreliable above 230400 baud; prefer
+          <code>-b 230400</code> for long reads and large writes</td>
+          <td><a href="hardware.html#safety">hardware §safety</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="equipment">
+    <h2 id="equipment">4. Required &amp; excluded equipment</h2>
+    <div class="table-scroll">
+      <table>
+        <caption>Everything the M1 bench session needs — and everything it
+        must not include</caption>
+        <thead>
+          <tr><th scope="col">Required for M1</th><th scope="col">Excluded from M1 (leave in the box)</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>The ESP32 T-Display board (our confirmed unit)</td>
+            <td>PCM5102A / GY-PCM5102 DAC module — <strong>disconnected and
+            unpowered</strong></td>
+          </tr>
+          <tr>
+            <td>One direct, data-capable USB cable (no hub)</td>
+            <td>I2S jumper wires / breadboard</td>
+          </tr>
+          <tr>
+            <td>The development Mac with the pinned ESP-IDF v6.0.2 toolchain</td>
+            <td>Amplifier, powered speaker, or headphones</td>
+          </tr>
+          <tr>
+            <td>An A2DP-capable phone (Bluetooth audio source)</td>
+            <td>The RX-5235 boombox chassis (stays closed and untouched)</td>
+          </tr>
+          <tr>
+            <td>This page (open on the laptop or printed)</td>
+            <td>Multimeter / bench supply (not needed until M2)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="warning">If any wire, DAC, or amplifier ends up connected during
+    M1, stop and remove it. Their presence cannot help an M1 pass and only
+    risks driving an unverified pin.</p>
+  </section>
+
+  <section aria-labelledby="preflight">
+    <h2 id="preflight">5. Safety &amp; go/no-go preflight</h2>
+    <p>Work top to bottom. Any <strong>NO-GO</strong> stops the session until
+    it is resolved — do not improvise past it.</p>
+    <ul class="checklist">
+      <li><strong>Device identity &amp; port.</strong> Board plugged in via a
+      direct data cable. Rediscover the port:
+      <code>ls /dev/cu.usbserial* /dev/cu.wchusbserial*</code>. Confirm it is
+      the CH9102 bridge. Record the exact port string. <em>NO-GO if no port
+      enumerates.</em></li>
+      <li><strong>Toolchain health.</strong> <code>scripts/doctor.sh</code>
+      exits <em>environment ready</em> (ESP-IDF v6.0.2 present, tag matches,
+      port visible). <em>NO-GO on any FAIL line.</em></li>
+      <li><strong>Backup verified.</strong> Confirm the recorded pre-write
+      backup still hashes to its logged SHA-256
+      (<code>shasum -a 256 &lt;backup&gt;</code> vs the record in
+      <a href="rx5235-build-plan.html#restore">§16</a>). Do <em>not</em> take a
+      new &ldquo;first&rdquo; backup — one already exists.
+      <em>NO-GO if the hash does not match.</em></li>
+      <li><strong>No bulk erase.</strong> The plan uses only
+      <code>idf.py flash</code>, which does not bulk-erase.
+      <code>erase-flash</code> is forbidden without explicit per-session user
+      approval — it is not part of M1.</li>
+      <li><strong>No GPIO configuration.</strong> The build must select the
+      <em>Idle</em> audio output (<a href="#strategy">§6</a>) so that no I2S or
+      DAC pin is configured. Confirm the output choice before flashing.
+      <em>NO-GO if the build is set to External&nbsp;I2S or Internal&nbsp;DAC.</em></li>
+      <li><strong>Power &amp; USB conditions.</strong> Direct cable, no hub;
+      laptop on stable power; nothing else wired to the board headers.</li>
+      <li><strong>Rollback artifact ready.</strong> Know both rollback paths
+      before flashing: reflash the repo smoke app, or restore the factory image
+      from backup (<a href="#rollback">§11</a>).</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="strategy">
+    <h2 id="strategy">6. Firmware strategy &amp; configuration delta</h2>
+    <p>The strategy is deliberately the least invasive path that still exercises
+    the whole Bluetooth transport: <strong>run Espressif's stock example
+    unmodified and select its built-in &ldquo;discard&rdquo; output.</strong>
+    No source edit is required, and no GPIO is configured.</p>
+
+    <h3 id="strategy-verified">6.1 Verified source behaviour (ESP-IDF v6.0.2)</h3>
+    <p>The following are read directly from the checked-out pinned tree at
+    <code>examples/bluetooth/bluedroid/classic_bt/a2dp_sink_stream</code> and its
+    shared <code>classic_bt/common</code> components (exact files in
+    <a href="#sources">§14</a>). Each is
+    <span class="status status--confirmed">VERIFIED</span> in source, not
+    inferred:</p>
+    <ul>
+      <li>The example advertises as a Classic-Bluetooth A2DP <em>sink</em>. The
+      device name is <code>CONFIG_EXAMPLE_LOCAL_DEVICE_NAME</code>, default
+      <code>ESP_SPEAKER</code>.</li>
+      <li>At stack-up it registers GAP + A2DP callbacks, calls
+      <code>esp_a2d_sink_init()</code>, and sets scan mode to
+      <code>ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE</code> — so a phone
+      can discover and connect. On connect it becomes non-discoverable; on
+      disconnect it returns to connectable/discoverable.</li>
+      <li>Audio output is a build-time <em>choice</em>,
+      <code>EXAMPLE_A2DP_SINK_OUTPUT</code>, with three options: <em>External
+      I2S Codec</em> (the default — drives GPIO), <em>Internal DAC</em>, and
+      <strong><em>Idle Output</em></strong>, whose help text reads literally
+      &ldquo;Select this to discard a2dp sink data.&rdquo;</li>
+      <li>The Idle output implementation is a set of no-ops. It includes no I2S,
+      GPIO, or DAC driver and touches no pin. The three I2S pin settings
+      (<code>EXAMPLE_I2S_LRCK_PIN</code>=27, <code>_BCK_PIN</code>=26,
+      <code>_DATA_PIN</code>=25) <code>depend on</code> the External-I2S choice,
+      so in Idle mode they do not even exist in the configuration.</li>
+      <li>Even while discarding audio, the internal-codec data handler still
+      logs <code>Audio packet count: N</code> every 100 packets — decoded PCM
+      is flowing, proving the stream without a DAC. The example README confirms
+      this: without a codec &ldquo;the example will only show a count of audio
+      data packets received silently.&rdquo;</li>
+      <li>Connection and stream state are logged by the A2DP event handlers:
+      <code>A2DP connection state: {Disconnected|Connecting|Connected|Disconnecting}, [MAC]</code>,
+      <code>A2DP audio state: {Suspended|Started}</code>,
+      <code>A2DP PROF STATE: Init Complete</code>, and the protocol/capability
+      lines. These are the M1 evidence.</li>
+      <li>The committed <code>sdkconfig.defaults</code> already enables the right
+      stack: <code>CONFIG_BT_ENABLED=y</code>,
+      <code>CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=y</code> (controller in Classic
+      BR/EDR mode, no BLE), <code>CONFIG_BT_BLUEDROID_ENABLED=y</code>,
+      <code>CONFIG_BT_CLASSIC_ENABLED=y</code>, and
+      <code>CONFIG_BT_A2DP_ENABLE=y</code>.</li>
+      <li>Documented limitations (README): SBC codec only, decoded to 44.1&nbsp;kHz
+      stereo 16-bit PCM; at most one A2DP source connection at a time; A2DP sink
+      cannot run together with A2DP source.</li>
+    </ul>
+
+    <h3 id="strategy-adaptation">6.2 Proposed configuration (no source change)</h3>
+    <p>The only decisions are menuconfig selections — clearly separated here
+    from the verified facts above so a reviewer can see what is
+    <span class="status status--confirmed">stock</span> versus what this plan
+    <span class="status status--conditional">chooses</span>:</p>
+    <ul>
+      <li><span class="status status--conditional">CHOICE</span> Set the audio
+      output to <strong>Idle Output</strong>
+      (<code>CONFIG_EXAMPLE_A2DP_SINK_OUTPUT_IDLE=y</code>). This is the whole
+      adaptation: it flips the stock default away from External&nbsp;I2S so that
+      zero GPIO is configured. No C code is edited.</li>
+      <li><span class="status status--conditional">CHOICE</span> Optionally set
+      an identifiable device name, e.g.
+      <code>CONFIG_EXAMPLE_LOCAL_DEVICE_NAME="RX-5235 Digital Tape"</code>
+      (matching <a href="rx5235-build-plan.html#phase-3">Phase 3</a>). The stock
+      <code>ESP_SPEAKER</code> is equally valid — record whichever is flashed.</li>
+      <li>Everything else stays at the example's committed defaults.</li>
+    </ul>
+    <p>If a reviewer prefers not to rely on the <code>Idle</code> choice at all,
+    the equivalent minimal source adaptation would be to leave the output at
+    Internal-codec and make <code>audio_sink_srv_data_output()</code> a no-op —
+    but that is <em>unnecessary</em>, because the stock <code>Idle</code> option
+    already is exactly that. Prefer the stock option; do not modify source.</p>
+
+    <div class="table-scroll">
+      <table>
+        <caption>Configuration delta — stock example default &rarr; M1 build</caption>
+        <thead>
+          <tr>
+            <th scope="col">Setting (menuconfig / <code>CONFIG_</code>)</th>
+            <th scope="col">Stock default</th>
+            <th scope="col">M1 value</th>
+            <th scope="col">Effect</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Target</th>
+            <td>&mdash;</td>
+            <td><code>idf.py set-target esp32</code></td>
+            <td>Classic ESP32, our SoC.</td>
+          </tr>
+          <tr>
+            <th scope="row">A2DP Sink Output
+            (<code>EXAMPLE_A2DP_SINK_OUTPUT</code>)</th>
+            <td>External I2S Codec (drives GPIO 26/27/25)</td>
+            <td><strong>Idle Output</strong>
+            (<code>..._IDLE=y</code>)</td>
+            <td><strong>Zero GPIO configured; audio discarded.</strong> The one
+            change that matters.</td>
+          </tr>
+          <tr>
+            <th scope="row">External codec
+            (<code>EXAMPLE_A2DP_SINK_USE_EXTERNAL_CODEC</code>)</th>
+            <td>Off — Bluedroid decodes SBC internally</td>
+            <td>Off (unchanged)</td>
+            <td>Keeps the <code>Audio packet count</code> log evidence.</td>
+          </tr>
+          <tr>
+            <th scope="row">Device name
+            (<code>EXAMPLE_LOCAL_DEVICE_NAME</code>)</th>
+            <td><code>ESP_SPEAKER</code></td>
+            <td><code>ESP_SPEAKER</code> or
+            <code>RX-5235 Digital Tape</code></td>
+            <td>What the phone shows; record the exact value flashed.</td>
+          </tr>
+          <tr>
+            <th scope="row">Controller mode
+            (<code>BTDM_CTRL_MODE_BR_EDR_ONLY</code>)</th>
+            <td>On</td>
+            <td>On (unchanged)</td>
+            <td>Classic BR/EDR only; no BLE.</td>
+          </tr>
+          <tr>
+            <th scope="row">Host + A2DP
+            (<code>BT_BLUEDROID_ENABLED</code>,
+            <code>BT_CLASSIC_ENABLED</code>, <code>BT_A2DP_ENABLE</code>)</th>
+            <td>On</td>
+            <td>On (unchanged)</td>
+            <td>Bluedroid host with the A2DP sink profile.</td>
+          </tr>
+          <tr>
+            <th scope="row">I2S pins
+            (<code>EXAMPLE_I2S_*_PIN</code>)</th>
+            <td>LRCK 27 / BCK 26 / DATA 25 (only under External I2S)</td>
+            <td><em>Absent</em> in Idle mode</td>
+            <td>No pin is referenced or driven.</td>
+          </tr>
+          <tr>
+            <th scope="row">Net GPIO behaviour</th>
+            <td>I2S GPIO driven</td>
+            <td><strong>None configured or driven</strong></td>
+            <td>Satisfies the verified-pin safety rule.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Read the exact option strings from <code>menuconfig</code> in
+    the checked-out pinned tree — the output choice lives in the shared
+    &ldquo;A2DP Sink Internal Codec Example Configuration&rdquo; menu, not the
+    example's own Kconfig — and flag any mismatch in the plan's
+    <a href="rx5235-build-plan.html#decision-log">decision log</a>. Do not trust
+    third-party tutorials for option names.</p>
+  </section>
+
+  <section aria-labelledby="commands">
+    <h2 id="commands">7. Preparation &amp; command sequence</h2>
+    <p>Read-only and build steps are safe to repeat. Exactly <strong>one</strong>
+    step writes to the board, and it is called out. All commands run in the
+    pinned environment; the bench project lives <em>outside</em> this repository
+    until <a href="rx5235-build-plan.html#firmware">§15</a> folds any keeper code
+    into components. <code>&lt;port&gt;</code> is the only placeholder —
+    discover it, never guess it.</p>
+
+    <h3 id="commands-readonly">7.1 Read-only preparation</h3>
+    <pre><code># In the boombox repo checkout — confirm the pinned toolchain is healthy
+scripts/doctor.sh
+
+# Discover the serial port (an observation each session, not a constant)
+ls /dev/cu.usbserial* /dev/cu.wchusbserial*
+# -> record the exact string, e.g. /dev/cu.usbserial-XXXXXXXXXXX
+
+# Re-verify the existing full-flash backup against its recorded hash
+shasum -a 256 "$HOME/Library/Application Support/Boombox/backups/&lt;backup-file&gt;"
+# -> must equal the SHA-256 recorded in build plan section 16</code></pre>
+
+    <h3 id="commands-build">7.2 Instantiate &amp; build the example (no writes to the board)</h3>
+    <pre><code># Enter the pinned ESP-IDF environment (as scripts/build.sh does internally)
+source "$HOME/esp/esp-idf-v6.0.2/export.sh"
+
+# Create a bench project from the pinned example, OUTSIDE the repo
+cd ~/bench            # any scratch dir outside the boombox repo
+idf.py create-project-from-example \
+  "bluetooth/bluedroid/classic_bt/a2dp_sink_stream"
+cd a2dp_sink_stream
+
+idf.py set-target esp32
+
+# Select the Idle output (and optionally the device name).
+# Menu path: "A2DP Sink Internal Codec Example Configuration"
+#   -> "A2DP Sink Output" -> "Idle Output"
+# and (optional) "A2DP Example Configuration" -> "Local Device Name".
+idf.py menuconfig
+# Equivalent non-interactive form — append to sdkconfig.defaults, then build:
+#   CONFIG_EXAMPLE_A2DP_SINK_OUTPUT_IDLE=y
+#   CONFIG_EXAMPLE_LOCAL_DEVICE_NAME="RX-5235 Digital Tape"
+
+# Build only — this does not touch the board
+idf.py build
+
+# Capture the config hash for the evidence log
+shasum -a 256 sdkconfig</code></pre>
+    <p class="warning">Before the write step, re-confirm in
+    <code>menuconfig</code> (or <code>sdkconfig</code>) that <strong>Idle
+    Output</strong> is selected and that no <code>EXAMPLE_I2S_*_PIN</code>
+    option is present. This is the last gate that keeps M1 at zero GPIO.</p>
+
+    <h3 id="commands-flash">7.3 The one deliberate flash + monitor (writes to the board)</h3>
+    <div class="stop"><p><strong>This is the only step that changes the
+    board.</strong> It overwrites the smoke app (already backed up). A plain
+    <code>flash</code> does not bulk-erase — keep it that way.</p></div>
+    <pre><code># Deliberate, explicit flash over the direct cable, then open the monitor
+idf.py -p &lt;port&gt; flash monitor
+# Monitor exits with Ctrl-]  (console is 115200 8N1 on UART0)</code></pre>
+    <p>If long transfers stall on the CH9102 bridge, add <code>-b 230400</code>
+    (<code>idf.py -p &lt;port&gt; -b 230400 flash monitor</code>).</p>
+  </section>
+
+  <section aria-labelledby="procedure">
+    <h2 id="procedure">8. Bench procedure</h2>
+    <p>Do these in order, one variable at a time, watching the monitor
+    throughout. Audio need not be audible — the log is the proof.</p>
+    <ol>
+      <li><strong>Boot &amp; stack.</strong> On flash+monitor, watch for the
+      boot banner, then Bluetooth init and
+      <code>A2DP PROF STATE: Init Complete</code>. The device is now
+      discoverable.</li>
+      <li><strong>Discovery.</strong> On the phone, open Bluetooth settings and
+      scan. The device name (<code>RX-5235 Digital Tape</code> or
+      <code>ESP_SPEAKER</code>) should appear within ~10&nbsp;s.</li>
+      <li><strong>Pair &amp; connect.</strong> Tap to pair. Pairing uses Secure
+      Simple Pairing by default (typically no PIN prompt on a modern phone; a
+      legacy fixed PIN <code>1234</code> is the fallback). The monitor should log
+      <code>A2DP connection state: Connecting</code> then
+      <code>Connected, [phone-MAC]</code>.</li>
+      <li><strong>Stream start.</strong> Play audio from a music app. Watch for
+      <code>A2DP audio state: Started</code> followed by
+      <code>Audio packet count: 100, 200, 300&hellip;</code> climbing. That
+      rising count <em>is</em> the proof that decoded audio packets flow — with
+      no DAC attached.</li>
+      <li><strong>Stream stop.</strong> Pause playback; expect
+      <code>A2DP audio state: Suspended</code> and the packet count to stop
+      advancing.</li>
+      <li><strong>Reconnect.</strong> Disconnect from the phone (or power-cycle
+      the board): expect <code>A2DP connection state: Disconnected</code> and a
+      return to discoverable. Reconnect and confirm the connected log again.</li>
+      <li><strong>Negative / retry checks.</strong> (a) With the board
+      disconnected, confirm it is discoverable again from a fresh scan.
+      (b) Forget the device on the phone and re-pair from scratch. (c) Optionally
+      confirm defined behaviour when a second phone tries to connect while one is
+      connected (single source expected).</li>
+    </ol>
+    <p>This mirrors the plan's <a href="rx5235-build-plan.html#test-bt">§11.1
+    Bluetooth test matrix</a> (Discovery, Pairing, Reconnect, Second-device) —
+    run those rows here and record them in <a href="#evidence">§9</a>.</p>
+  </section>
+
+  <section aria-labelledby="evidence">
+    <h2 id="evidence">9. Test &amp; evidence checklist</h2>
+    <p>Fill this at the bench. Save the full monitor capture to a file and
+    reference its path; paste only the key lines. Blank fields are for the
+    tester to complete.</p>
+    <div class="table-scroll">
+      <table>
+        <caption>M1 evidence — expected observation, actual result, pass/fail</caption>
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Step</th>
+            <th scope="col">Expected observation (log)</th>
+            <th scope="col">Actual result</th>
+            <th scope="col">Pass/Fail</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">1</th><td>BT stack + A2DP init</td>
+          <td><code>A2DP PROF STATE: Init Complete</code></td>
+          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <tr><th scope="row">2</th><td>Discovery</td>
+          <td>Device name visible on phone within ~10&nbsp;s</td>
+          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <tr><th scope="row">3</th><td>Pair + connect</td>
+          <td><code>A2DP connection state: Connected, [MAC]</code></td>
+          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <tr><th scope="row">4</th><td>Stream start</td>
+          <td><code>A2DP audio state: Started</code> + rising
+          <code>Audio packet count</code></td>
+          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <tr><th scope="row">5</th><td>Stream stop</td>
+          <td><code>A2DP audio state: Suspended</code>; count stops</td>
+          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <tr><th scope="row">6</th><td>Disconnect &rarr; discoverable</td>
+          <td><code>A2DP connection state: Disconnected</code>; re-appears in scan</td>
+          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <tr><th scope="row">7</th><td>Reconnect</td>
+          <td><code>Connected</code> again without re-pairing</td>
+          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <tr><th scope="row">8</th><td>Re-pair from scratch</td>
+          <td>Forget + pair completes cleanly</td>
+          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3 id="evidence-run">9.1 Run record</h3>
+    <dl class="kv">
+      <dt>Date / time</dt><dd><span class="blank"></span></dd>
+      <dt>Phone + OS / app(s)</dt><dd><span class="blank"></span></dd>
+      <dt>Device name flashed</dt><dd><span class="blank"></span></dd>
+      <dt>Serial port</dt><dd><span class="blank"></span></dd>
+      <dt>Build commit (bench project)</dt><dd><span class="blank"></span></dd>
+      <dt>Config hash (<code>shasum -a 256 sdkconfig</code>)</dt><dd><span class="blank"></span></dd>
+      <dt>Monitor log excerpt path</dt><dd><span class="blank"></span></dd>
+      <dt>Overall M1 result</dt><dd><span class="blank"></span></dd>
+    </dl>
+    <p class="note"><strong>Pass = definition of done met</strong>
+    (<a href="#objective">§1</a>): discoverable, paired, connected, and a rising
+    packet count with clean reconnect — all with no DAC. Record the outcome on
+    the M1 bead; do not mark the milestone &ldquo;complete&rdquo; beyond what the
+    evidence shows.</p>
+  </section>
+
+  <section aria-labelledby="troubleshoot">
+    <h2 id="troubleshoot">10. Troubleshooting decision tree</h2>
+    <p>One variable at a time; observe before you change anything. These branches
+    extend the plan's <a href="rx5235-build-plan.html#ts-bt">§17.1 Bluetooth
+    table</a> — use it too, and don't duplicate its fixes here.</p>
+    <div class="table-scroll">
+      <table>
+        <caption>M1 symptoms &rarr; observe first &rarr; likely cause &rarr; next step</caption>
+        <thead>
+          <tr>
+            <th scope="col">Symptom</th>
+            <th scope="col">Observe first (no changes)</th>
+            <th scope="col">Likely cause</th>
+            <th scope="col">Next step</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Device absent from the phone's scan</td>
+            <td>Did the monitor reach <code>Init Complete</code>? Is it
+            connectable/discoverable (not already connected to another device)?</td>
+            <td>App not running; wrong build flashed; already bonded/connected
+            elsewhere</td>
+            <td>Confirm the boot log; forget the device on any other phone;
+            reflash the known-good build (<a href="#rollback">§11</a>)</td>
+          </tr>
+          <tr>
+            <td>Pairing rejected or times out</td>
+            <td>Monitor for a pairing/auth event; phone for a stale bond</td>
+            <td>Stale bond on either side; SSP/legacy mismatch; RF marginal</td>
+            <td>Forget on phone and retry at close range; if prompted, the legacy
+            PIN is <code>1234</code></td>
+          </tr>
+          <tr>
+            <td>BT stack fails to start</td>
+            <td>Boot log for a controller/Bluedroid init error; is
+            <code>BT_ENABLED</code> / Classic BT set?</td>
+            <td>Wrong sdkconfig (BT/Classic/A2DP disabled); corrupt flash</td>
+            <td>Re-check the <a href="#strategy">§6</a> config; rebuild and
+            reflash; verify against the committed <code>sdkconfig.defaults</code></td>
+          </tr>
+          <tr>
+            <td>Connects but no <code>audio state: Started</code> / no packets</td>
+            <td>Is the phone actually playing to <em>this</em> device? Volume
+            routed to it?</td>
+            <td>Phone routing audio elsewhere; playback not started; app not
+            using A2DP</td>
+            <td>Start playback explicitly; confirm the phone's output target;
+            try a second app</td>
+          </tr>
+          <tr>
+            <td>Reconnect fails after disconnect/power-cycle</td>
+            <td>Is the device discoverable again in the log? Bond present on the
+            phone?</td>
+            <td>Bond cleared on one side; phone not retrying</td>
+            <td>Re-pair once; recheck (bond persistence is a later, firmware
+            concern — <a href="rx5235-build-plan.html#ts-bt">§17.1</a>)</td>
+          </tr>
+          <tr>
+            <td>Flash or monitor fails</td>
+            <td>Correct <code>&lt;port&gt;</code>? Cable data-capable and direct
+            (no hub)? Transfer stalling?</td>
+            <td>Wrong/missing port; charge-only cable or hub; CH9102 &gt;230400
+            baud</td>
+            <td>Rediscover the port; swap to a data cable, no hub; add
+            <code>-b 230400</code>; see
+            <a href="rx5235-build-plan.html#ts-system">§17.3</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="stop"><p><strong>Do not start changing GPIOs.</strong> If M1
+    will not pass, the fix is in the build config, the cable/port, or the phone
+    — never in wiring a pin. There is nothing to wire in M1.</p></div>
+  </section>
+
+  <section aria-labelledby="rollback">
+    <h2 id="rollback">11. Stop conditions &amp; rollback</h2>
+    <p><strong>Stop</strong> the session if: pairing fails repeatedly after the
+    troubleshooting branches, the BT stack will not start after a clean
+    rebuild/reflash, or anything tempts you toward wiring or bulk-erasing. Capture
+    the monitor output first, then roll back.</p>
+    <p><strong>Rollback options</strong> (either returns the board to a known
+    state; <em>never</em> bulk-erase):</p>
+    <ul>
+      <li><strong>Reflash the repo smoke app</strong> — rebuild the boombox
+      repo app and <code>idf.py -p &lt;port&gt; flash</code> it back. Fastest way
+      to a known-good, board-neutral state.</li>
+      <li><strong>Restore the factory image</strong> from the preserved backup,
+      following <a href="rx5235-build-plan.html#restore">plan §16</a>. Use this
+      if the smoke app itself is in doubt.</li>
+    </ul>
+    <p>Both leave the DAC untouched (it was never connected) and require no
+    erase. Record what happened on the M1 bead either way.</p>
+  </section>
+
+  <section aria-labelledby="handoff">
+    <h2 id="handoff">12. Completion &amp; M1&rarr;M2 handoff</h2>
+    <ul class="checklist">
+      <li>All <a href="#evidence">§9</a> rows recorded; monitor excerpt saved and
+      referenced.</li>
+      <li>Config hash and device name logged; sdkconfig deltas from stock noted
+      in the <a href="rx5235-build-plan.html#decision-log">decision log</a>.</li>
+      <li>Board rolled back to the smoke app (or left on the M1 build
+      deliberately, noted on the bead).</li>
+      <li>M1 result recorded on the bead — <em>not</em> marked complete beyond
+      the evidence.</li>
+    </ul>
+    <p><strong>What M1 does not touch — and what M2 picks up.</strong> Only after
+    M1 passes do the PCM5102A checks begin, at
+    <a href="rx5235-build-plan.html#phase-2">Phase&nbsp;2</a> /
+    <a href="rx5235-build-plan.html#phase-4">Phase&nbsp;4</a> /
+    <a href="rx5235-build-plan.html#m2">M2</a>:</p>
+    <ul>
+      <li>Powered DAC config-pin defaults (FLT / DEMP / XSMT / FMT) and
+      on-board SCK-to-GND — measured with the module powered.</li>
+      <li>The <code>A3V3</code> output voltage and the VIN range.</li>
+      <li>Switching the example's output from <em>Idle</em> to <em>External
+      I2S</em> and setting BCK/LRCK/DATA to the
+      <a href="rx5235-build-plan.html#verified-map">§10.4 verified pin
+      table</a>.</li>
+      <li>Physically wiring the 3-wire I2S link to the DAC and confirming
+      audible output into an external amp.</li>
+    </ul>
+    <p>None of the above is part of M1. The M1 build's zero-GPIO stance is
+    exactly what lets M1 run before that pin/DAC work is finished.</p>
+  </section>
+
+  <section aria-labelledby="timing">
+    <h2 id="timing">13. Time &amp; pause points</h2>
+    <dl class="kv">
+      <dt>Active time</dt>
+      <dd>~45&ndash;75&nbsp;min: preflight and backup check (~10), build the
+      example (~10&ndash;20 incl. first-time compile), flash + monitor (~5),
+      pair / stream / reconnect / evidence (~20&ndash;40).</dd>
+      <dt>Elapsed time</dt>
+      <dd>Comfortably one bench session; no waiting on external parts (the DAC
+      is not involved).</dd>
+      <dt>Natural pause points</dt>
+      <dd>After the read-only preflight (<a href="#commands">§7.1</a>); after a
+      green build but before the deliberate flash (<a href="#commands">§7.3</a>);
+      after capturing the connected + packet-count evidence
+      (<a href="#evidence">§9</a>).</dd>
+      <dt>Can be completed in one sitting?</dt>
+      <dd>Yes — everything here is a single USB-only session.</dd>
+    </dl>
+  </section>
+
+  <section aria-labelledby="sources">
+    <h2 id="sources">14. Evidence &amp; sources</h2>
+    <p>Executable claims on this page were read from the checked-out pinned
+    ESP-IDF v6.0.2 tree and official Espressif docs — not third-party
+    tutorials. Local paths are under the pinned install
+    (<code>$HOME/esp/esp-idf-v6.0.2</code>, resolved from
+    <code>.espidf-version</code> by <code>scripts/env.sh</code>):</p>
+    <ul>
+      <li><strong>Example:</strong>
+      <code>examples/bluetooth/bluedroid/classic_bt/a2dp_sink_stream/</code> —
+      <code>main/main.c</code> (stack-up, scan mode, device name),
+      <code>main/Kconfig.projbuild</code> (device name, external-codec toggle),
+      <code>sdkconfig.defaults</code> (BT/Classic/A2DP + BR/EDR-only),
+      <code>README.md</code> (silent packet-count behaviour, limitations).</li>
+      <li><strong>Output choice + Idle path:</strong>
+      <code>examples/bluetooth/bluedroid/classic_bt/common/a2dp_utils/a2dp_sink_int_codec_utils/</code>
+      — <code>Kconfig.projbuild</code> (the <code>EXAMPLE_A2DP_SINK_OUTPUT</code>
+      choice incl. <em>Idle Output</em>, and the External-I2S-only pin options),
+      <code>audio_sink_service_idle.c</code> (no-op discard, no GPIO),
+      <code>a2dp_sink_int_codec_utils.c</code> (connection/audio-state logs and
+      the <code>Audio packet count</code> line).</li>
+      <li><strong>Common handlers / init:</strong>
+      <code>.../a2dp_sink_common_utils/a2dp_sink_common_utils.c</code>
+      (profile/capability logs) and
+      <code>.../common/bredr_app_common_utils/</code> (NVS, controller in Classic
+      mode, Bluedroid, pairing) — the latter confirmed to contain no I2S/GPIO/DAC
+      code.</li>
+      <li><strong>Official Espressif documentation:</strong> ESP-IDF v6.0.2
+      Classic&nbsp;Bluetooth A2DP API (<code>esp_a2dp_api</code>) and GAP
+      (<code>esp_gap_bt_api</code>) references, and the example's own
+      <code>tutorial/Example_A2DP_Sink.md</code>.</li>
+      <li><strong>Repo cross-references:</strong>
+      <a href="../AGENTS.md">AGENTS.md</a> (hardware HARD RULES),
+      <a href="hardware.html">hardware notes</a>,
+      <a href="rx5235-build-plan.html">RX-5235 build plan</a>.</li>
+    </ul>
+    <p class="note">If any option name or log string differs from the above when
+    read live in <code>menuconfig</code> or the monitor, trust the checked-out
+    tree and record the difference in the
+    <a href="rx5235-build-plan.html#decision-log">decision log</a>.</p>
+    <p><a href="rx5235-build-plan.html#m1">&larr; Back to milestone M1</a> ·
+    <a href="rx5235-build-plan.html#phase-3">Phase 3 in the build plan</a></p>
+  </section>
+</main>
+<footer>
+  <p>Boombox · local documentation · <a href="index.html">docs home</a></p>
+</footer>
+</body>
+</html>

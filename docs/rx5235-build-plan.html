@@ -256,10 +256,13 @@
           <td>The documentary pin-conflict review has advanced: candidate I2S
           map&nbsp;B (BCK&nbsp;26 / LRCK&nbsp;27 / DATA&nbsp;25) is confirmed
           conflict-free on this unit against the official schematic and the
-          photographed header (<a href="#verified-map">§10.4</a>). Firmware
-          still stays board-neutral (console UART only, zero GPIO) until the
-          DAC-side strap check and the bench A2DP/DAC test close the remaining
-          hardware gates (<a href="#wiring">§10</a>).</td>
+          photographed header (<a href="#verified-map">§10.4</a>). Firmware that
+          <em>drives pins</em> still stays gated (console UART only, zero GPIO)
+          until the DAC-side strap check and the bench audio test close the
+          remaining hardware gates (<a href="#wiring">§10</a>). The
+          <a href="m1-bluetooth-bringup.html">M1 Bluetooth transport test</a> is
+          itself zero-GPIO — the A2DP example's <em>Idle</em> output — so it is
+          not part of this gate and can run over USB now.</td>
         </tr>
         <tr>
           <td>PCM5102A module variant</td>
@@ -382,17 +385,29 @@
           <td>No</td>
         </tr>
         <tr>
-          <th scope="row">M1</th>
-          <td>ESP32 advertises as a Bluetooth speaker</td>
-          <td><span class="status status--blocked">BLOCKED / HOLD</span> —
-          awaits M0 (pin review gates any I2S pin config)</td>
-          <td>M0; <a href="#phase-3">Phase 3</a></td>
-          <td>Phone sees the device name; monitor log excerpt saved</td>
+          <th scope="row" id="m1">M1</th>
+          <td>ESP32 advertises as a Bluetooth speaker —
+          <a href="m1-bluetooth-bringup.html"><strong>detailed USB-only
+          bring-up plan</strong></a></td>
+          <td><span class="status status--confirmed">READY</span> — a USB-only
+          bench session with no pin review required: the M1 build selects the
+          A2DP example's <em>Idle</em> output, so it configures <strong>zero
+          GPIO</strong> and does not wait on any DAC/I2S work
+          (<a href="m1-bluetooth-bringup.html#gates">gate table</a>). Not yet
+          run — the repository app is still the board-neutral smoke app.</td>
+          <td>Verified backup + working toolchain + Bluetooth-capable board
+          (all confirmed); <a href="#phase-3">Phase 3</a> in Idle-output mode.
+          <strong>Not</strong> the §10.4 DAC pin review — M1 drives no pins.</td>
+          <td>Phone sees the device name; monitor shows
+          <code>Connected</code> + a rising <code>Audio packet count</code>;
+          log excerpt saved
+          (<a href="m1-bluetooth-bringup.html#evidence">M1 evidence
+          checklist</a>)</td>
           <td>Reflash smoke app; factory state restorable from backup</td>
           <td>No</td>
         </tr>
         <tr>
-          <th scope="row">M2</th>
+          <th scope="row" id="m2">M2</th>
           <td>Phone audio plays via PCM5102A into an external amp</td>
           <td><span class="status status--blocked">BLOCKED / HOLD</span> —
           awaits M1 (the DAC module is now identified and its jumper map verified;
@@ -582,7 +597,8 @@
       <p><strong>Run the pin conflict review, then build the bench A2DP/DAC
       test.</strong>
       <span class="status status--confirmed">REVIEW: DAC PINS PASS</span>
-      <span class="status status--blocked">BENCH TEST GATED</span></p>
+      <span class="status status--confirmed">M1 BENCH READY</span>
+      <span class="status status--blocked">M2 DAC BENCH GATED</span></p>
       <ul>
         <li><strong>Done (documentary):</strong> candidate map&nbsp;B —
         BCK&nbsp;26, LRCK&nbsp;27, DATA&nbsp;25 (the v6.0.2
@@ -593,15 +609,20 @@
         <strong>No onboard conflict on this unit.</strong> The
         <a href="#verified-map">§10.4 verified table</a> is filled for
         BCK/LRCK/DATA accordingly.</li>
-        <li><strong>Remaining (hardware-gated):</strong> the verified table's
-        DAC-side <em>powered-defaults</em> column and the Phase 3/4 bench run —
-        flashing the example, powering the module, measuring the FLT/DEMP/XSMT/FMT
-        defaults and SCK-to-GND, then configuring the module for standard I2S and
-        confirming audio — are bench actions, not analysis. No hardware was
+        <li><strong>Remaining, split by milestone:</strong>
+        <strong>M1</strong> (<a href="#phase-3">Phase 3</a>) is a USB-only flash
+        of the example in <em>Idle</em> output — no module, no pins, no DAC — and
+        is ready to run now: see the
+        <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a>.
+        <strong>M2</strong> (<a href="#phase-4">Phase 4</a>) is the DAC-side
+        bench — the verified table's <em>powered-defaults</em> column, powering
+        the module, measuring the FLT/DEMP/XSMT/FMT defaults and SCK-to-GND,
+        then configuring standard I2S and confirming audio. No hardware was
         powered in this round.</li>
-        <li><strong>Next input:</strong> Move 2's strap resolution, then follow
-        <a href="#phase-3">Phase 3</a> / <a href="#phase-4">Phase 4</a> with
-        stock pin config.</li>
+        <li><strong>Next input:</strong> for M1, none — run
+        <a href="m1-bluetooth-bringup.html">Phase 3 / M1</a> as a USB-only
+        session whenever convenient. For M2, Move 2's strap resolution, then
+        <a href="#phase-4">Phase 4</a> with the verified pin config.</li>
       </ul>
     </li>
   </ol>
@@ -954,22 +975,31 @@
 
   <section class="phase">
     <h3 id="phase-3">Phase 3 — Flash the known-good A2DP sink example</h3>
-    <p><span class="status status--blocked">BLOCKED / HOLD</span> — needs the
-    Phase 0 pin review (M0). Example identity verified against the pinned
-    ESP-IDF version.</p>
+    <p><span class="status status--confirmed">READY</span> — a USB-only bench
+    session; the detailed, step-by-step version is the
+    <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a>. This
+    phase configures <strong>no pins</strong> (see Prerequisites), so it does
+    not wait on the §10 pin review. Example identity verified against the
+    pinned ESP-IDF version.</p>
     <dl class="kv">
       <dt>Purpose</dt>
-      <dd>Make the ESP32 behave as a Bluetooth speaker with I2S output using
-      Espressif's reference code before any custom firmware exists.</dd>
+      <dd>Prove the Bluetooth transport: make the ESP32 discoverable as a
+      Bluetooth speaker and confirm a phone pairs, connects, and streams, using
+      Espressif's reference code — before any custom firmware or DAC exists.
+      Audio output is <em>not</em> part of this phase.</dd>
       <dt>Milestone</dt>
       <dd>M1</dd>
       <dt>Prerequisites</dt>
-      <dd>Phase 0 complete (verified pin map); Phase 1 evidence verified;
-      Phase 2 far enough to know the DAC's expected format (I2S).</dd>
+      <dd>Phase 1 evidence verified (backup + toolchain) and a
+      Bluetooth-capable board (confirmed). <strong>Not</strong> Phase 0's DAC
+      pin review and <strong>not</strong> Phase 2: the M1 build selects the
+      example's <em>Idle</em> output and configures zero GPIO, so no verified
+      pin map or DAC format is needed. (Phase 2 and the pin review gate
+      <a href="#phase-4">Phase 4 / M2</a>, not this phase.)</dd>
       <dt>Hazards</dt>
       <dd>Flashing overwrites the current app (factory firmware is already
-      preserved in the backup). Driving unreviewed pins — prevented by the
-      M0 gate.</dd>
+      preserved in the backup). No GPIO is driven — the Idle output configures
+      no I2S or DAC pin.</dd>
       <dt>Rollback</dt>
       <dd>Reflash the repo smoke app; or restore the factory image from
       backup (<a href="#serviceability">§16</a>).</dd>
@@ -982,11 +1012,15 @@
     <p><strong>Verified example facts (ESP-IDF v6.0.2, our pinned
     version):</strong> the classic-BT A2DP sink example is
     <code>examples/bluetooth/bluedroid/classic_bt/<strong>a2dp_sink_stream</strong></code>.
-    Its stock configuration outputs I2S with defaults <strong>BCK GPIO26,
+    Its stock default outputs I2S with defaults <strong>BCK GPIO26,
     LRCK GPIO27, DATA GPIO25</strong> and advertises as
-    <code>ESP_SPEAKER</code>; menuconfig selects internal-DAC vs external
-    I2S codec output (internal DAC is an 8-bit fallback — we use the
-    external PCM5102A). AVRCP is exercised by <em>separate</em> v6.0.2
+    <code>ESP_SPEAKER</code>; the &ldquo;A2DP Sink Output&rdquo; menuconfig
+    choice offers external I2S, internal DAC (an 8-bit fallback), and an
+    <strong>Idle Output that discards the audio and configures no pins</strong>.
+    <strong>M1 uses the Idle output</strong> (zero GPIO, verified in the v6.0.2
+    source — see the <a href="m1-bluetooth-bringup.html#strategy">M1 strategy
+    section</a>); the external-I2S path with the PCM5102A is
+    <a href="#phase-4">Phase 4 / M2</a>. AVRCP is exercised by <em>separate</em> v6.0.2
     examples (<code>avrcp_ct_metadata</code>,
     <code>avrcp_absolute_volume</code>, <code>avrcp_ct_cover_art</code>) —
     used in <a href="#phase-6">Phase 6</a>.</p>
@@ -1008,11 +1042,12 @@
       <code>idf.py create-project-from-example
       "bluetooth/bluedroid/classic_bt/a2dp_sink_stream"</code> (path per the
       v6.0.2 tree), then <code>idf.py set-target esp32</code>.</li>
-      <li>In <code>menuconfig</code>: select the <strong>external I2S
-      codec</strong> output path; set BCK/LRCK/DATA to the
-      <a href="#verified-map">verified assignment</a> (if the verified map
-      adopts candidate B, the example defaults 26/27/25 need no change); set
-      the device name to <code>RX-5235 Digital Tape</code>.</li>
+      <li>In <code>menuconfig</code>: select the <strong>Idle Output</strong>
+      under &ldquo;A2DP Sink Output&rdquo; so the decoded stream is discarded and
+      <strong>no I2S pin is configured</strong> — this keeps M1 at zero GPIO;
+      set the device name to <code>RX-5235 Digital Tape</code>. Switching to the
+      external-I2S path and the <a href="#verified-map">verified BCK/LRCK/DATA
+      assignment</a> is <a href="#phase-4">Phase 4 / M2</a>, not this phase.</li>
       <li>Build; then flash deliberately over a direct data-capable cable
       (<code>idf.py -p &lt;port&gt; flash monitor</code>). Normal
       <code>idf.py flash</code> does not bulk-erase; keep it that way.</li>
@@ -1022,9 +1057,13 @@
     <p><strong>Record:</strong> sdkconfig deltas from stock, device name,
     monitor excerpt of a successful pairing.</p>
     <p><strong>Pass:</strong> phone sees <code>RX-5235 Digital Tape</code>
-    (or the stock name if unchanged), pairs, and the monitor shows audio
-    packets/state when playing. No-audio-yet is <em>not</em> a failure of
-    this phase if pairing works — that's Phase 4's job.</p>
+    (or the stock name if unchanged), pairs, and the monitor logs
+    <code>A2DP audio state: Started</code> with a rising
+    <code>Audio packet count</code> when playing — proof of stream with no DAC
+    attached. No-audio-yet is <em>not</em> a failure of this phase if pairing
+    works — that's Phase 4's job. The full step-by-step procedure, evidence
+    checklist, and troubleshooting are in the
+    <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a>.</p>
     <div class="stop"><p><strong>Stop condition:</strong> pairing fails
     repeatedly or the BT stack fails to start → capture the monitor output
     and work the <a href="#troubleshooting">§17 pairing table</a>; do not
