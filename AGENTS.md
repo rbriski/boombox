@@ -19,7 +19,10 @@ build/integration plan in
   passed on 2026-07-18: BCK/LRCK/DIN = GPIO26/27/25, FMT low (Philips I2S),
   XSMT high, and SCK grounded. The audited M2 image is now flashed; Bluetooth,
   44.1 kHz external-I2S configuration, and five packet-bearing playback cycles
-  passed. Physical PCM5102A line output through an amp or meter remains to test.
+  passed. M2 end-to-end audio also passed: a 60-second 1 kHz tone was audible
+  through the PCM5102A and an Onn AUX speaker while BCK/LRCK/DIN each showed
+  about 1.5 V DC average switching activity. Extended stereo/noise/long-run
+  qualification remains separate Phase 4 work.
 - Toolchain: **native ESP-IDF**, version pinned in [`.espidf-version`](.espidf-version).
   All scripts read that file; CI mirrors it in `.github/workflows/ci.yml`.
 - No git remote exists; work lands on **local `main`**. Do not create or

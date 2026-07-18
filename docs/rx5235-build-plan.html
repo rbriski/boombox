@@ -254,7 +254,7 @@
         </tr>
         <tr>
           <td>Pin-dependent firmware work</td>
-          <td><span class="status">M2 DIGITAL PATH PASS / ANALOG CHECK PENDING</span></td>
+          <td><span class="status status--completed">M2 CORE AUDIO PASS</span></td>
           <td>The documentary pin-conflict review is complete for M2: I2S
           map&nbsp;B (BCK&nbsp;26 / LRCK&nbsp;27 / DATA&nbsp;25) is confirmed
           conflict-free on this unit against the official schematic and the
@@ -267,9 +267,11 @@
           itself zero-GPIO — the A2DP example's <em>Idle</em> output — and has
           now <strong>PASSED</strong> (2026-07-18). The deliberate M2 flash has
           also completed: boot, A2DP reconnect, 44.1&nbsp;kHz external-I2S
-          configuration, and five packet-bearing playback cycles passed. The
-          board is left running the M2 image; physical PCM5102A line output is
-          the remaining M2 check. All GPIO outside the three verified M2 pins
+          configuration, and five packet-bearing playback cycles passed. A
+          60-second 1&nbsp;kHz tone was then audible through the PCM5102A and
+          a proven Onn AUX speaker/cable; powered BCK/LCK/DIN readings each
+          averaged about 1.5&nbsp;V DC during playback. The board is left
+          running the M2 image. All GPIO outside the three verified M2 pins
           remains gated.</td>
         </tr>
         <tr>
@@ -424,17 +426,21 @@
         </tr>
         <tr>
           <th scope="row" id="m2">M2</th>
-          <td>Phone audio plays via PCM5102A into an external amp</td>
-          <td><span class="status">DIGITAL PATH PASS / PHYSICAL CHECK IN PROGRESS — 2026-07-18</span> —
+          <td>A2DP-source audio plays via PCM5102A into an external amp</td>
+          <td><span class="status status--completed">PASS — 2026-07-18</span> —
           M1 passes; DAC powered state is measured; XSMT is jumpered high;
           SCK is grounded; BCK/LRCK/DIN = 26/27/25 is wired. The audited M2
           build uses Philips timing to match measured FMT low. Ordinary flash,
           boot, A2DP reconnect, 44.1&nbsp;kHz I2S configuration, and five
-          packet-bearing playback cycles pass. Physical PCM5102A output through
-          the external amp or a meter remains.</td>
+          packet-bearing playback cycles pass. The development Mac was the
+          A2DP source for this core proof (not a phone). The user heard a
+          continuous 1&nbsp;kHz tone through the PCM5102A and a proven Onn AUX
+          speaker; BCK/LCK/DIN each averaged about 1.5&nbsp;V DC during
+          playback.</td>
           <td>M1; <a href="#phase-2">Phase 2</a>, <a href="#phase-4">Phase 4</a></td>
-          <td><a href="#test-audio">Audio test matrix</a> rows pass; noise
-          notes recorded</td>
+          <td>Serial <code>Connected</code>/<code>Started</code>/packet evidence;
+          audible 60-second tone through external AUX speaker; powered I2S
+          activity readings recorded</td>
           <td>Unplug DAC; module unchanged</td>
           <td>No</td>
         </tr>
@@ -619,7 +625,7 @@
       test.</strong>
       <span class="status status--confirmed">REVIEW: DAC PINS PASS</span>
       <span class="status status--completed">M1 BENCH PASS</span>
-      <span class="status">M2 DIGITAL PATH PASS / ANALOG CHECK PENDING</span></p>
+      <span class="status status--completed">M2 CORE AUDIO PASS</span></p>
       <ul>
         <li><strong>Done (documentary):</strong> candidate map&nbsp;B —
         BCK&nbsp;26, LRCK&nbsp;27, DATA&nbsp;25 (the v6.0.2
@@ -653,11 +659,17 @@
         configured at 44.1&nbsp;kHz, and five low-volume trials each showed
         <code>Started</code>, I2S ringbuffer processing, packet count 100, and
         <code>Suspended</code>. Mac audio output was restored afterward.</li>
-        <li><strong>Remaining:</strong> confirm physical PCM5102A line output
-        through a low-volume external amp or AC measurement. Serial proves the
-        digital path, not the analog output.</li>
-        <li><strong>Next input:</strong> the user's audible or meter observation
-        from <a href="#phase-4">Phase 4</a>.</li>
+        <li><strong>Done (M2 physical output, 2026-07-18):</strong> a valid
+        control proved the powered Onn speaker, AUX mode, and cable from the
+        Mac headphone output. With that same cable returned to the PCM5102A,
+        the user heard a 60-second 1&nbsp;kHz tone. A3V3 and XSMT both measured
+        3.25&nbsp;V, while BCK/LCK/DIN each showed about 1.5&nbsp;V DC average
+        activity during playback. This closes the core end-to-end M2 proof.</li>
+        <li><strong>Remaining Phase 4 qualification:</strong> stereo orientation,
+        multi-app, noise, level, and long-run matrix rows. These are not part of
+        the completed M2 core proof and remain required before display work.</li>
+        <li><strong>Next input:</strong> extended <a href="#phase-4">Phase 4</a>
+        audio qualification when the user chooses to continue.</li>
       </ul>
     </li>
   </ol>
@@ -1107,10 +1119,12 @@
 
   <section class="phase">
     <h3 id="phase-4">Phase 4 — First audio bench test (external amplifier)</h3>
-    <p><span class="status">DIGITAL PATH PASS / PHYSICAL CHECK IN PROGRESS — 2026-07-18</span> — M1,
+    <p><span class="status status--completed">M2 CORE PASS — 2026-07-18</span> — M1,
     powered DAC configuration, verified pin map, and wiring are complete. The
-    Philips-I2S image is flashed and its boot/A2DP/I2S packet path passes;
-    physical PCM5102A output remains.</p>
+    Philips-I2S image is flashed; its boot/A2DP/I2S packet path passes; and a
+    60-second 1&nbsp;kHz tone was audible through the PCM5102A and a proven
+    external AUX speaker/cable. Extended stereo, multi-app, level, noise, and
+    long-run rows below remain before display work.</p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Prove phone → ESP32 → PCM5102A → external amp/speaker end-to-end,
@@ -1142,7 +1156,9 @@
       <li>Audit the example's data format as well as its GPIOs. For this unit,
       measured FMT low requires the Philips slot macro; do not flash the stock
       v6.0.2 MSB/left-justified path unchanged.</li>
-      <li>Connect DAC line-out to the external amp; volumes low.</li>
+      <li>Connect DAC line-out to the external amp; volumes low.
+      <em>(Done 2026-07-18 with an Onn powered AUX speaker; speaker/cable
+      independently proved from the Mac headphone output.)</em></li>
       <li>Pair and play from at least two different apps.</li>
       <li>Run the <a href="#test-audio">audio</a>,
       <a href="#test-stereo">stereo orientation</a>, and
@@ -1165,7 +1181,8 @@
   <section class="phase">
     <h3 id="phase-5">Phase 5 — Display bring-up without breaking audio</h3>
     <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
-    M2. Display pins are CONDITIONAL until Phase 0 resolves them.</p>
+    the extended Phase 4 stereo/noise/level/long-run qualification. The core
+    M2 end-to-end proof passes, but display work has not been authorized.</p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Light up the onboard ST7789 1.14&Prime; 135&times;240 IPS panel
