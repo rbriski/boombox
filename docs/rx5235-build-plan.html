@@ -208,8 +208,10 @@
           product page</a> and <a href="hardware.html#board">hardware
           notes</a>. The product-page &ldquo;V18&rdquo; pin table now applies
           to our physical unit: the 2026-07-17 silkscreen (T-Display&nbsp;V1.1)
-          and the photographed header labels both match it. Wiring still waits
-          on the <a href="#wiring">§10</a> pin review, not on identity.</td>
+          and the photographed header labels both match it. The M2 I2S rows in
+          <a href="#verified-map">§10.4</a> have since passed review and were
+          wired on 2026-07-18; other pin-dependent work remains individually
+          gated.</td>
         </tr>
         <tr>
           <td>Physical unit silkscreen / revision photo</td>
@@ -252,24 +254,26 @@
         </tr>
         <tr>
           <td>Pin-dependent firmware work</td>
-          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
-          <td>The documentary pin-conflict review has advanced: candidate I2S
+          <td><span class="status">M2 AUDIO BENCH READY</span></td>
+          <td>The documentary pin-conflict review is complete for M2: I2S
           map&nbsp;B (BCK&nbsp;26 / LRCK&nbsp;27 / DATA&nbsp;25) is confirmed
           conflict-free on this unit against the official schematic and the
-          photographed header (<a href="#verified-map">§10.4</a>). Firmware that
-          <em>drives pins</em> still stays gated (console UART only, zero GPIO)
-          until the DAC-side strap check and the bench audio test close the
-          remaining hardware gates (<a href="#wiring">§10</a>). The
+          photographed header (<a href="#verified-map">§10.4</a>), and the
+          user completed that wiring with a common ground on 2026-07-18.
+          Powered DAC readings close the module-side gate: A3V3 3.25&nbsp;V;
+          FLT/DEMP/FMT about 0.3&nbsp;V (low); XSMT 3.25&nbsp;V after its
+          A3V3 jumper; SCK 0&nbsp;V after its ground jumper. The
           <a href="m1-bluetooth-bringup.html">M1 Bluetooth transport test</a> was
           itself zero-GPIO — the A2DP example's <em>Idle</em> output — and has
           now <strong>PASSED</strong> (2026-07-18); the board is left running
-          that build. M2's DAC-side gate is unaffected and still open.</td>
+          that build until the deliberate M2 flash. All GPIO outside the three
+          verified M2 pins remains gated.</td>
         </tr>
         <tr>
           <td>PCM5102A module variant</td>
           <td><span class="status status--confirmed">MODULE IDENTIFIED</span>
           <span class="status status--confirmed">JUMPER MAP VERIFIED</span>
-          <span class="status status--unknown">POWERED DEFAULTS / MEASURE</span></td>
+          <span class="status status--confirmed">POWERED STATE VERIFIED</span></td>
           <td>Photographed both sides 2026-07-17 (<a href="#phase-2">Phase&nbsp;2</a>).
           It is the purple <strong>GY-PCM5102</strong> shared-PCB module
           (PCM5100/5101/5102 selection legend) populated with a genuine-marked
@@ -281,10 +285,13 @@
           <strong>Verified physical connectivity (unpowered meter, 2026-07-17):</strong>
           H1L&rarr;FLT, H2L&rarr;DEMP, H3L&rarr;XSMT, H4L&rarr;FMT; each jumper's
           L pad ties directly to ground; all four solder jumpers read
-          open/unbridged. Open (MEASURE): the powered FLT/DEMP/XSMT/FMT defaults,
-          the <code>A3V3</code> output voltage, the VIN range and on-board
-          SCK-to-GND stay unmeasured — unpowered continuity does not establish
-          operating logic levels (Move&nbsp;2, <a href="#next">§7</a>).</td>
+          open/unbridged. <strong>Powered bench measurements (2026-07-18):</strong>
+          A3V3 = 3.25&nbsp;V; FLT/DEMP/FMT &asymp; 0.3&nbsp;V (logic low);
+          XSMT was initially &asymp;0.3&nbsp;V (muted), then 3.25&nbsp;V after
+          a temporary XSMT-to-A3V3 jumper; SCK was not originally hard-grounded,
+          then measured 0&nbsp;&Omega; unpowered and 0&nbsp;V powered after an
+          SCK-to-GND jumper. The exact regulator part and general VIN range
+          remain unknown, but the M2 bench configuration is measured and ready.</td>
         </tr>
         <tr>
           <td>RX-5235 internals (rails, selector, dimensions)</td>
@@ -321,16 +328,16 @@
       <span class="flow-detail">runs A2DP sink + AVRCP + UI; ST7789 1.14&Prime;
       135&times;240 display in the cassette window</span></li>
     <li>I2S digital audio (BCK / LRCK / DIN, 3-wire)
-      <span class="flow-detail">candidate map&nbsp;B (26 / 27 / 25) passed the
-      §10 schematic + photographed-header review on this unit; final bench
-      sign-off pending. APLL-clocked standard mode, 44.1&nbsp;kHz 16-bit
-      stereo</span></li>
+      <span class="flow-detail">verified map&nbsp;B (26 / 27 / 25) passed the
+      §10 schematic + photographed-header review and was bench-wired on this
+      unit 2026-07-18. Philips I2S timing is required because measured FMT is
+      low; 44.1&nbsp;kHz 16-bit stereo for the initial test</span></li>
     <li>PCM5102A stereo DAC module
       <span class="flow-detail">chip CONFIRMED: 2.1&nbsp;V<sub>RMS</sub>
       ground-centered line output, internal PLL from BCK (no SCK wire);
       module identified as the purple GY-PCM5102 carrier, jumper-to-pin map
-      verified by meter (all four jumpers open) — powered config-pin defaults
-      still MEASURE</span></li>
+      verified by meter (all four jumpers open); powered defaults measured,
+      XSMT jumpered high, and SCK jumpered to ground</span></li>
     <li class="flow-unknown">Attenuation / isolation network
       <span class="flow-detail"><span class="status status--unknown">UNKNOWN /
       MEASURE</span> — series/shunt values are hypotheses until the RX-5235
@@ -374,11 +381,11 @@
           <th scope="row">M0</th>
           <td>Board physically verified + pin review done (backup already
           exists)</td>
-          <td><span class="status">IN PROGRESS</span> — backup, toolchain,
-          smoke flash, and product identity are done; silkscreen photographed
-          (T-Display V1.1) and TFT_RST resolved (GPIO23); the §10.4 DAC rows
-          are filled on the ESP32 side. Remaining: the module strap check and
-          the bench sign-off of the verified pin table</td>
+          <td><span class="status status--completed">PASS — 2026-07-18</span> —
+          backup, toolchain, smoke flash, product identity, silkscreen,
+          schematic review, module powered-state check, and the §10.4 I2S
+          bench sign-off are complete. The optional TFT_RST continuity check
+          is not an M0 blocker.</td>
           <td>none</td>
           <td>Silkscreen photos; schematic-resolved TFT_RST; filled
           <a href="#verified-map">verified pin table</a></td>
@@ -415,9 +422,11 @@
         <tr>
           <th scope="row" id="m2">M2</th>
           <td>Phone audio plays via PCM5102A into an external amp</td>
-          <td><span class="status status--blocked">BLOCKED / HOLD</span> —
-          awaits M1 (the DAC module is now identified and its jumper map verified;
-          powered config-pin defaults + bench remain)</td>
+          <td><span class="status">READY / IN PROGRESS — 2026-07-18</span> —
+          M1 passes; DAC powered state is measured; XSMT is jumpered high;
+          SCK is grounded; BCK/LRCK/DIN = 26/27/25 is wired. The audited M2
+          build uses Philips timing to match measured FMT low. Ordinary flash,
+          serial evidence, and physical external-amp output remain.</td>
           <td>M1; <a href="#phase-2">Phase 2</a>, <a href="#phase-4">Phase 4</a></td>
           <td><a href="#test-audio">Audio test matrix</a> rows pass; noise
           notes recorded</td>
@@ -572,16 +581,16 @@
       <p><strong>Identify the exact PCM5102A module.</strong>
       <span class="status status--confirmed">MODULE IDENTIFIED</span>
       <span class="status status--confirmed">JUMPER MAP VERIFIED</span>
-      <span class="status status--unknown">POWERED DEFAULTS OPEN</span></p>
+      <span class="status status--confirmed">POWERED STATE VERIFIED</span></p>
       <ul>
         <li><strong>Done:</strong> photographed both sides 2026-07-17. It is the
         purple <strong>GY-PCM5102</strong> shared-PCB module (PCM5100/5101/5102
         selection legend) populated with a genuine-marked TI/Burr-Brown
         <strong>PCM5102A</strong>; every I2S/config/output label transcribed;
         power <em>appears consistent with</em> VIN&nbsp;&rarr; onboard 3.3&nbsp;V
-        LDO&nbsp;&rarr; the PCM5102A with a ground-centered line-out — the exact
-        LDO, the <code>A3V3</code> output voltage and the VIN range stay MEASURE
-        (<a href="#phase-2">Phase 2</a>).</li>
+        LDO&nbsp;&rarr; the PCM5102A with a ground-centered line-out. The exact
+        regulator and general VIN range remain unknown, while the powered
+        A3V3 rail is now measured (<a href="#phase-2">Phase 2</a>).</li>
         <li><strong>Also done (unpowered meter, 2026-07-17):</strong> the four
         config solder-jumpers are mapped and read directly with a meter —
         <code>H1L&rarr;FLT</code>, <code>H2L&rarr;DEMP</code>,
@@ -589,14 +598,15 @@
         ties directly to ground; and <strong>all four solder jumpers are
         open/unbridged</strong>. This is verified physical connectivity, not a
         powered logic state.</li>
-        <li><strong>Remaining (powered bench check):</strong> unpowered continuity
-        cannot establish operating levels, so the powered FLT/DEMP/XSMT/FMT
-        defaults, the <code>A3V3</code> output voltage, the VIN range, and
-        on-board SCK-to-GND are still open. Per the TI datasheet (behavioral reference,
-        section 13), FMT selects the audio format and XSMT is an active-low
-        soft-mute with an internal pulldown, so an open or floating XSMT would
-        idle muted — but this module's actual powered state is unmeasured. Measure
-        the config pins with the module powered before trusting any level.</li>
+        <li><strong>Done (powered bench, 2026-07-18):</strong> A3V3 measured
+        3.25&nbsp;V; FLT/DEMP/FMT measured about 0.3&nbsp;V (logic low); XSMT
+        was initially about 0.3&nbsp;V, then 3.25&nbsp;V after a temporary
+        XSMT-to-A3V3 jumper; SCK was not originally hard-grounded, then read
+        0&nbsp;&Omega; unpowered and 0&nbsp;V powered after an SCK-to-GND
+        jumper. This selects normal-latency filtering, de-emphasis off,
+        Philips I2S, soft-unmute, and internal-PLL operation. The general VIN
+        rating remains undocumented; that uncertainty is separate from the
+        now-measured bench configuration.</li>
       </ul>
     </li>
     <li>
@@ -604,7 +614,7 @@
       test.</strong>
       <span class="status status--confirmed">REVIEW: DAC PINS PASS</span>
       <span class="status status--completed">M1 BENCH PASS</span>
-      <span class="status status--blocked">M2 DAC BENCH GATED</span></p>
+      <span class="status">M2 AUDIO BENCH READY</span></p>
       <ul>
         <li><strong>Done (documentary):</strong> candidate map&nbsp;B —
         BCK&nbsp;26, LRCK&nbsp;27, DATA&nbsp;25 (the v6.0.2
@@ -624,15 +634,19 @@
         <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a> and
         its <a href="m1-bluetooth-bringup.html#evidence">evidence
         checklist</a>.</li>
-        <li><strong>Remaining:</strong> <strong>M2</strong>
-        (<a href="#phase-4">Phase 4</a>) is the DAC-side bench — the verified
-        table's <em>powered-defaults</em> column, powering the module,
-        measuring the FLT/DEMP/XSMT/FMT defaults and SCK-to-GND, then
-        configuring standard I2S and confirming audio. No hardware was powered
-        in this round; M1 passing does not change M2's gate.</li>
-        <li><strong>Next input:</strong> for M1, none — complete. For M2,
-        Move 2's strap resolution, then <a href="#phase-4">Phase 4</a> with the
-        verified pin config.</li>
+        <li><strong>Done (M2 preparation, 2026-07-18):</strong> powered DAC
+        measurements close the module-config gate; the user wired BCK&nbsp;26,
+        LRCK&nbsp;27, DIN&nbsp;25 and common ground. Source audit found that
+        ESP-IDF v6.0.2's stock external-codec path uses MSB/left-justified
+        timing, which conflicts with measured FMT low. The M2 bench build
+        therefore uses the driver's Philips slot macro at both initialization
+        and runtime reconfiguration.</li>
+        <li><strong>Remaining:</strong> verify the attached board and preserved
+        backup, perform one ordinary explicit flash (no erase), capture A2DP
+        and I2S serial evidence, and confirm physical line output through a
+        low-volume external amp or AC measurement.</li>
+        <li><strong>Next input:</strong> <a href="#phase-4">Phase 4</a> with the
+        audited Philips-I2S build and the verified bench wiring.</li>
       </ul>
     </li>
   </ol>
@@ -810,7 +824,7 @@
     <p><span class="status status--confirmed">CHIP FACTS CONFIRMED</span>
     <span class="status status--confirmed">MODULE IDENTIFIED</span>
     <span class="status status--confirmed">JUMPER MAP VERIFIED</span>
-    <span class="status status--unknown">POWERED DEFAULTS OPEN (bench)</span></p>
+    <span class="status status--confirmed">POWERED STATE VERIFIED</span></p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Turn &ldquo;a PCM5102A module&rdquo; into a documented part with a
@@ -904,32 +918,26 @@
     are <strong>not verified</strong>. The chip's output is TI DirectPath — a
     ground-centered (≈0&nbsp;V DC-biased) 2.1&nbsp;V<sub>RMS</sub> line level on
     ROUT/LROUT and the 3.5&nbsp;mm jack that needs <strong>no external DC-blocking
-    capacitors</strong> (TI SLAS859C). <strong>Still MEASURE:</strong> the
-    <code>A3V3</code> output voltage (A3V3 is the analog 3.3&nbsp;V supply pin — it
-    exists; its powered voltage is what remains to be read) and, separately, the
-    safe VIN operating range; as a safety default, never back-power the ESP32 from
-    the module's 3V3 pad.</p>
-    <p><strong>Still open (powered MEASURE — a meter on a powered module, not a
-    re-shoot of the same photo):</strong> the jumper topology is now resolved by
-    the unpowered bench meter above (mapped, L pads to ground, all four open), but
-    unpowered continuity does not tell us the powered logic levels. Still to
-    measure with the module powered: the <strong>FLT / DEMP / XSMT / FMT</strong>
-    default levels, the VIN-side regulator behaviour and safe VIN range, and
-    whether <strong>SCK</strong> is grounded on-board. These matter because the TI
-    datasheet is the behavioral reference (section 13): <strong>FMT selects the
-    audio format</strong> (Low = ESP32 standard / Philips I2S) and <strong>XSMT is
-    an active-low soft-mute with an internal pulldown</strong> — an open or low
-    XSMT idles muted, so the module must actively pull XSMT to 3V3 to un-mute.
-    With all four jumpers open on this unit, each config pin follows its internal
-    pull until externally driven — but that is datasheet behaviour, <em>not</em> a
-    measured fact about this module, so confirm every level on the powered bench
-    before trusting it. (This also supersedes the community report that these
-    purple modules ship with all four jumpers bridged to L: on our unit the meter
-    reads them open.) <strong>Trust the module's own silkscreen and a meter over
-    any generic pinout.</strong></p>
-    <p><strong>Steps</strong> (1–2 complete 2026-07-17; 3 cautiously inferred,
-    A3V3 output voltage and VIN range still MEASURE; 4 jumper map verified by
-    meter, powered defaults open; 5–6 are bench actions).</p>
+    capacitors</strong> (TI SLAS859C). <strong>Powered bench result
+    (2026-07-18):</strong> A3V3 measured 3.25&nbsp;V. The exact regulator part
+    and its general safe VIN range remain undocumented; never back-power the
+    ESP32 from the module's A3V3 pad.</p>
+    <p><strong>Powered configuration verified (2026-07-18):</strong> FLT,
+    DEMP, and FMT each measured about 0.3&nbsp;V (logic low). XSMT initially
+    measured about 0.3&nbsp;V, confirming the unjumpered module was muted, then
+    measured 3.25&nbsp;V after a temporary XSMT-to-A3V3 jumper. SCK was not
+    originally hard-grounded; after an SCK-to-GND jumper it measured
+    0&nbsp;&Omega; unpowered and 0&nbsp;V powered. These readings select normal
+    latency (FLT low), de-emphasis off (DEMP low), Philips I2S (FMT low),
+    soft-unmute (XSMT high), and internal-PLL operation (SCK grounded).
+    <strong>Firmware consequence:</strong> ESP-IDF v6.0.2's stock external-I2S
+    example uses its MSB/left-justified macro, so the M2 image must instead use
+    <code>I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG</code> at initialization and on
+    stream reconfiguration. The stock source unchanged is not a valid match
+    for this measured FMT state.</p>
+    <p><strong>Steps</strong> (1–4 complete; 5–6 completed for the I2S side on
+    2026-07-18; the external line-output hookup is the remaining Phase 4
+    action).</p>
     <ol>
       <li>Photograph the module both sides; transcribe every silkscreen
       label and solder-pad group. <em>(Done — see photos above.)</em></li>
@@ -951,32 +959,31 @@
       by reading the pads and measuring them; record them.
       <em>(Jumper topology verified by unpowered meter 2026-07-17 —
       H1L&rarr;FLT, H2L&rarr;DEMP, H3L&rarr;XSMT, H4L&rarr;FMT, all L pads to
-      ground, all four jumpers open. The powered FLT/DEMP/XSMT/FMT defaults and
-      SCK-to-GND remain an open bench check — unpowered continuity does not
-      establish operating levels; see &ldquo;Still open&rdquo; above.)</em></li>
+      ground, all four jumpers open. Powered readings completed 2026-07-18:
+      FLT/DEMP/FMT low; XSMT high after its A3V3 jumper; SCK grounded.)</em></li>
       <li>Prepare the output side: 3.5&nbsp;mm stereo breakout or RCA
       pigtail — LOUT→tip/left-center, ROUT→ring/right-center, module
       GND→sleeve/shields. <em>(Bench.)</em></li>
       <li>Dry-fit breadboard wiring with short leads; do not connect to the
-      ESP32 until the §10 verified map exists. <em>(Bench.)</em></li>
+      ESP32 until the §10 verified map exists. <em>(Done 2026-07-18:
+      GPIO26&rarr;BCK, GPIO27&rarr;LCK, GPIO25&rarr;DIN, common ground.)</em></li>
     </ol>
     <p><strong>Record:</strong> module variant (GY-PCM5102 / PCM5102A); pin
     labels (transcribed above); verified jumper map (unpowered meter, 2026-07-17 —
     H1L&rarr;FLT, H2L&rarr;DEMP, H3L&rarr;XSMT, H4L&rarr;FMT; all L pads to
     ground; all four jumpers open); supply plan (the layout appears consistent
     with VIN&nbsp;&rarr; onboard 3.3&nbsp;V LDO&nbsp;&rarr; the PCM5102A, but the
-    exact regulator and the VIN range are not verified and the <code>A3V3</code>
-    output voltage is unmeasured, so treat A3V3's voltage as unknown-until-measured
-    and never back-power the ESP32 from it); photo references
-    (<code>PCM5102A_front.png</code>, <code>PCM5102A_back.png</code>);
-    <span class="status status--unknown">still to record at the bench</span> —
-    the powered FLT/DEMP/XSMT/FMT defaults, the A3V3 output voltage, the VIN
-    range, and SCK-to-GND.</p>
+    exact regulator and general VIN range are not verified; measured A3V3 is
+    3.25&nbsp;V and must never back-power the ESP32); powered states
+    (FLT/DEMP/FMT low, XSMT high after A3V3 jumper, SCK grounded); photo
+    references (<code>PCM5102A_front.png</code>,
+    <code>PCM5102A_back.png</code>). The general VIN rating remains a module
+    documentation gap, not an unmeasured M2 strap state.</p>
     <p><strong>Pass:</strong> module documented and its pin labels transcribed
     into the <a href="#candidate-map">§10 candidate map</a>; jumper map verified
-    by meter; power plan has zero unstated assumptions. Remaining before power-up:
-    the powered FLT/DEMP/XSMT/FMT defaults and SCK-to-GND measured, the safe VIN
-    range established, and the output breakout built — all bench steps.</p>
+    by meter; powered configuration recorded; M2 I2S wiring follows only the
+    verified §10.4 map; firmware format matches measured FMT low. The external
+    amp/output observation remains Phase 4 evidence, not a Phase 2 gate.</p>
     <div class="stop"><p><strong>Stop conditions:</strong> module cannot be
     identified and its pads are ambiguous → do not power it; acquire a
     documented module instead (§9 lists criteria). Never put 5&nbsp;V on any
@@ -1032,11 +1039,16 @@
     <strong>M1 uses the Idle output</strong> (zero GPIO, verified in the v6.0.2
     source — see the <a href="m1-bluetooth-bringup.html#strategy">M1 strategy
     section</a>); the external-I2S path with the PCM5102A is
-    <a href="#phase-4">Phase 4 / M2</a>. AVRCP is exercised by <em>separate</em> v6.0.2
+    <a href="#phase-4">Phase 4 / M2</a>. Source audit on 2026-07-18 found
+    that this stock path uses <code>I2S_STD_MSB_SLOT_DEFAULT_CONFIG</code>
+    (left-justified, no one-bit shift), while this module's measured FMT-low
+    state requires Philips I2S. M2 therefore carries a local two-call-site
+    change to <code>I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG</code>; the pinned IDF
+    checkout remains untouched. AVRCP is exercised by <em>separate</em> v6.0.2
     examples (<code>avrcp_ct_metadata</code>,
     <code>avrcp_absolute_volume</code>, <code>avrcp_ct_cover_art</code>) —
     used in <a href="#phase-6">Phase 6</a>.</p>
-    <p class="warning"><strong>Version drift warning.</strong> Older
+    <p class="warning"><strong>Version/format drift warning.</strong> Older
     third-party tutorials reference an <code>a2dp_sink</code> example with
     bundled AVRCP handling; at v6.0.2 the example tree is as stated above
     (no plain <code>a2dp_sink</code> exists there — the supplied guide's §7
@@ -1084,8 +1096,10 @@
 
   <section class="phase">
     <h3 id="phase-4">Phase 4 — First audio bench test (external amplifier)</h3>
-    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
-    M1.</p>
+    <p><span class="status">READY / IN PROGRESS — 2026-07-18</span> — M1,
+    powered DAC configuration, verified pin map, and wiring are complete. The
+    Philips-I2S image is built and audited; flash, serial capture, and physical
+    output remain.</p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Prove phone → ESP32 → PCM5102A → external amp/speaker end-to-end,
@@ -1112,7 +1126,11 @@
     <ol>
       <li>Power the ESP32 from USB; power the DAC exactly per the Phase 2
       supply plan; keep I2S wires short and include a solid common
-      ground.</li>
+      ground. <em>(Done 2026-07-18 for BCK&nbsp;26 / LRCK&nbsp;27 /
+      DIN&nbsp;25 / common GND; XSMT high and SCK grounded.)</em></li>
+      <li>Audit the example's data format as well as its GPIOs. For this unit,
+      measured FMT low requires the Philips slot macro; do not flash the stock
+      v6.0.2 MSB/left-justified path unchanged.</li>
       <li>Connect DAC line-out to the external amp; volumes low.</li>
       <li>Pair and play from at least two different apps.</li>
       <li>Run the <a href="#test-audio">audio</a>,
@@ -1993,9 +2011,9 @@
   map&nbsp;B pin (25 / 26 / 27) is broken out on the left header, adjacent,
   and non-conflicting — so map&nbsp;B has been promoted into the
   <a href="#verified-map">§10.4 verified table</a> for BCK/LRCK/DATA, with
-  map&nbsp;A retained only as a fallback. <strong>Wiring still waits on the
-  DAC-side strap check and bench validation</strong>: do not wire from this
-  candidate table — wire only from §10.4.</p>
+  map&nbsp;A retained only as a fallback. The DAC-side powered check and M2
+  wiring were completed on 2026-07-18 from §10.4. This candidate table still
+  does not authorize future wiring — use only the verified table.</p>
   <div class="table-scroll">
     <table>
       <caption>Candidate pin assignments for the 3-wire I2S link to the
@@ -2035,7 +2053,9 @@
   avoids the I2C-labeled header pins entirely, uses output-capable
   non-strapping pins, and is byte-for-byte the v6.0.2
   <code>a2dp_sink_stream</code> example default (BCK&nbsp;26, LRCK&nbsp;27,
-  DATA&nbsp;25) — the first bench flash can run with stock pin config. The
+  DATA&nbsp;25) — the first bench flash can run with stock <em>pin</em> config.
+  The stock example's MSB/left-justified <em>data format</em> is not compatible
+  with this module's measured FMT-low state; M2 uses Philips I2S timing. The
   guide's alternate map (BCK&nbsp;27, LRCK&nbsp;26, DATA&nbsp;25) is an
   equally reviewable variant if map B fails review. All of them still
   require the Phase 0 schematic/header check.</p>
@@ -2046,19 +2066,17 @@
   strapping/input-only review done, and the DAC module's pin labels known
   (<a href="#phase-2">Phase 2</a>). The three I2S rows are filled with
   <strong>map&nbsp;B</strong>; every <strong>ESP32-side</strong> check passes.
-  <strong>One gate remains before wiring or power-up:</strong> the DAC
-  <em>module's own</em> powered config-pin defaults (FLT/DEMP/XSMT/FMT) and
-  SCK-to-GND are not yet measured — the jumper map is verified by meter (all four
-  open), but unpowered continuity does not establish operating levels, so a
-  powered bench check is still needed and the module-config box stays open. In
-  the &ldquo;Checked against&rdquo; column, <strong>straps</strong> means the
-  <em>ESP32 strapping-pin</em> clearance (§10.2); the separate module-config gate
-  is tracked in the DAC-power row and Phase&nbsp;2. Do not power the link until
-  that gate is closed.</p>
+  <strong>Module-side gate closed 2026-07-18:</strong> A3V3 measured
+  3.25&nbsp;V; FLT/DEMP/FMT measured low; XSMT measured high after its A3V3
+  jumper; SCK measured grounded after its ground jumper. The user then wired
+  GPIO26&rarr;BCK, GPIO27&rarr;LCK, GPIO25&rarr;DIN, and common ground. In the
+  &ldquo;Checked against&rdquo; column, <strong>straps</strong> means ESP32
+  strapping-pin clearance (§10.2). These rows authorize only this M2 bench
+  link; blank control rows remain unauthorized.</p>
   <div class="table-scroll">
     <table>
-      <caption>The only wiring-authorized table on this page — blank by
-      design</caption>
+      <caption>The only wiring-authorized table on this page — M2 rows signed
+      off; future-control rows intentionally blank</caption>
       <thead>
         <tr>
           <th scope="col">Signal</th>
@@ -2072,15 +2090,26 @@
         <tr><th scope="row">BCK</th><td><strong>GPIO26</strong></td>
         <td>BCK</td>
         <td>schematic ☑ · straps ☑ · header ☑ · onboard use ☑</td>
-        <td>Doc review, 2026-07-17 (ESP32 side)</td></tr>
+        <td>Doc review 2026-07-17; user bench wiring 2026-07-18</td></tr>
         <tr><th scope="row">LRCK / WS</th><td><strong>GPIO27</strong></td>
         <td>LCK (LRCK)</td>
         <td>schematic ☑ · straps ☑ · header ☑ · onboard use ☑</td>
-        <td>Doc review, 2026-07-17 (ESP32 side)</td></tr>
+        <td>Doc review 2026-07-17; user bench wiring 2026-07-18</td></tr>
         <tr><th scope="row">DATA (DIN)</th><td><strong>GPIO25</strong></td>
         <td>DIN</td>
         <td>schematic ☑ · straps ☑ · header ☑ · onboard use ☑</td>
-        <td>Doc review, 2026-07-17 (ESP32 side)</td></tr>
+        <td>Doc review 2026-07-17; user bench wiring 2026-07-18</td></tr>
+        <tr><th scope="row">System clock</th><td>— (not wired)</td>
+        <td>SCK &rarr; GND jumper</td>
+        <td>0&nbsp;&Omega; unpowered ☑ · 0&nbsp;V powered ☑</td>
+        <td>User meter, 2026-07-18</td></tr>
+        <tr><th scope="row">Soft unmute</th><td>—</td>
+        <td>XSMT &rarr; A3V3 temporary jumper</td>
+        <td>3.25&nbsp;V high / unmuted ☑</td>
+        <td>User meter, 2026-07-18</td></tr>
+        <tr><th scope="row">Common ground</th><td>GND</td>
+        <td>GND</td><td>short common return ☑</td>
+        <td>User bench wiring, 2026-07-18</td></tr>
         <tr><th scope="row">Button 1 (if external)</th>
         <td><span class="blank"></span></td><td>—</td>
         <td>schematic ☐ · straps ☐ · pull-up plan ☐</td>
@@ -2091,18 +2120,16 @@
         <td><span class="blank"></span></td></tr>
         <tr><th scope="row">DAC power</th><td>—</td>
         <td>VIN (→ onboard 3.3&nbsp;V LDO)</td>
-        <td>module docs ☑ · voltage verified ☐ (bench)</td>
-        <td>Topology from photo, 2026-07-17</td></tr>
+        <td>module topology reviewed ☑ · A3V3 3.25&nbsp;V ☑</td>
+        <td>Photo 2026-07-17; powered user meter 2026-07-18</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="warning"><strong>Not yet wire-ready.</strong> The ESP32-side pin
-  selection above is verified, but two boxes remain open by design — the DAC
-  module's powered config-pin defaults (FLT/DEMP/XSMT/FMT, plus SCK-to-GND) and
-  the VIN voltage — and both are bench checks, not analysis. Treat this table as
-  &ldquo;pins chosen and reviewed,&rdquo; not &ldquo;power it up.&rdquo; The
-  buttons rows stay blank until an external-control decision is made
-  (Phase&nbsp;13).</p>
+  <p class="note"><strong>M2 bench wiring is signed off.</strong> The powered
+  module state and three I2S connections above are measured and wired. This
+  does not authorize any blank button/control row, does not establish the
+  module's general VIN range, and does not prove audio output; those boundaries
+  remain Phase&nbsp;4 evidence.</p>
 
   <h2 id="tests">11. Test matrices</h2>
   <p>Each matrix is run at the phase that references it; results are
@@ -3054,16 +3081,17 @@ Date: ______   By: ______</code></pre>
         <a href="hardware.html#board-photos">hardware notes</a>)</td></tr>
         <tr><td>DAC module (verified Phase 2)</td>
         <td>GY-PCM5102 shared-PCB module, TI/Burr-Brown PCM5102A
-        (<a href="#phase-2">Phase 2 photos</a>); H1L–H4L straps to confirm at
-        the bench</td></tr>
+        (<a href="#phase-2">Phase 2 photos</a>); H1L–H4L mapped open;
+        FLT/DEMP/FMT low; XSMT jumpered high; SCK grounded; A3V3 3.25&nbsp;V
+        (powered bench, 2026-07-18)</td></tr>
         <tr><td>Firmware version/tag at close</td>
         <td><span class="blank"></span></td></tr>
         <tr><td>Factory backup path + SHA-256</td>
         <td>see <a href="#snapshot">§4</a>; copies:
         <span class="blank"></span></td></tr>
         <tr><td>Verified pin map</td><td>§10.4 as filled, date:
-        BCK/LRCK/DATA = 26/27/25, 2026-07-17 (ESP32 side); module straps +
-        bench sign-off pending</td></tr>
+        BCK/LRCK/DATA = 26/27/25, doc review 2026-07-17; module powered state
+        and user bench wiring signed off 2026-07-18</td></tr>
         <tr><td>Injection node + attenuation values</td>
         <td><span class="blank"></span></td></tr>
         <tr><td>Power tap point, measured rail, fuse value</td>

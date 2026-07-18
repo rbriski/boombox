@@ -15,8 +15,9 @@ build/integration plan in
   **user-confirmed: LILYGO T-Display Q125 16 MB** (official listing + V18
   pin table recorded in `docs/hardware.html`); the physical silkscreen is now
   photo-verified (T-Display V1.1, 2019-06-28) and TFT_RST is resolved from the
-  official schematic (GPIO23). The DAC-side strap check and the bench pin
-  sign-off remain.
+  official schematic (GPIO23). The DAC powered-state check and M2 pin sign-off
+  passed on 2026-07-18: BCK/LRCK/DIN = GPIO26/27/25, FMT low (Philips I2S),
+  XSMT high, and SCK grounded. End-to-end external-amp audio remains to test.
 - Toolchain: **native ESP-IDF**, version pinned in [`.espidf-version`](.espidf-version).
   All scripts read that file; CI mirrors it in `.github/workflows/ci.yml`.
 - No git remote exists; work lands on **local `main`**. Do not create or
@@ -80,8 +81,10 @@ The attached device is the only unit we have. In order:
    code until that specific pin assignment has been checked against the
    official Q125/V18 pinout, the official schematic, boot straps, header
    exposure, and onboard functions, and recorded in the verified table
-   (`docs/rx5235-build-plan.html` §10). Until then, board-neutral means:
-   console UART only, zero GPIO configuration.
+   (`docs/rx5235-build-plan.html` §10). The verified M2 I2S rows satisfy this
+   rule only for GPIO26/27/25; every other new pin remains gated. Until a row
+   is verified, board-neutral means console UART only and zero GPIO
+   configuration.
 2. **Back up before writing.** Before the first write of a session that
    changes flash contents, take (or confirm) a full flash backup to
    `~/Library/Application Support/Boombox/backups/` (timestamped, outside the

@@ -22,12 +22,12 @@
   <h1>Boombox hardware notes</h1>
   <p><span class="status status--confirmed">Board: LILYGO T-Display Q125
   16&nbsp;MB (user-confirmed)</span></p>
-  <p class="warning"><strong>Pin-dependent work remains gated</strong> — not
-  on identification any more, but on the pin-assignment review: no GPIO may
-  be configured or driven until it is checked against the official Q125/V18
-  pinout, the official schematic, boot straps, header exposure, and onboard
-  functions. The review lives in the
-  <a href="rx5235-build-plan.html#wiring">build plan §10</a>.</p>
+  <p class="warning"><strong>Pin-dependent work is assignment-gated.</strong>
+  The M2 I2S map BCK/LRCK/DIN = GPIO26/27/25 passed the review and was wired
+  on 2026-07-18. No other GPIO may be configured or driven until that specific
+  assignment is checked against the official Q125/V18 pinout, schematic, boot
+  straps, header exposure, and onboard functions. The authoritative table is
+  <a href="rx5235-build-plan.html#verified-map">build plan §10.4</a>.</p>
 
   <h2 id="verified">What is measured (read-only identification, 2026-07-17)</h2>
   <div class="table-scroll">
@@ -160,20 +160,21 @@
   (<a href="setup-research.html#version-pin">setup research §3</a>), and its
   4&nbsp;MB quick-start flash setting does not apply to the verified
   16&nbsp;MB Q125 board.</p>
-  <p><strong>Candidate DAC/control pin assignments still require review</strong>
-  against the schematic, strapping pins, input-only pins, and header
-  exposure before any wiring — including the build guide's GPIO26/22/25
-  suggestion, which is <em>not</em> automatically promoted. Candidates and
-  the blank verified-assignment table live in the
-  <a href="rx5235-build-plan.html#wiring">build plan §10</a>.</p>
+  <p><strong>The M2 DAC assignment is verified and wired:</strong>
+  GPIO26&rarr;BCK, GPIO27&rarr;LCK/LRCK, GPIO25&rarr;DIN, plus common ground.
+  Powered bench readings on 2026-07-18 established A3V3 = 3.25&nbsp;V;
+  FLT/DEMP/FMT &asymp; 0.3&nbsp;V (logic low); XSMT = 3.25&nbsp;V after its
+  A3V3 jumper; and SCK = 0&nbsp;V after its ground jumper. Other candidate
+  control pins remain unauthorized until separately reviewed. Full evidence
+  is in <a href="rx5235-build-plan.html#wiring">build plan §10</a>.</p>
 
   <h2 id="blocked">What remains gated</h2>
-  <p>Until the <a href="rx5235-build-plan.html#phase-0">Phase 0 physical
-  verify</a> and the pin review are complete, firmware must not:</p>
+  <p>The Phase 0 physical review and the three M2 I2S rows are complete.
+  Firmware still must not:</p>
   <ul>
-    <li>configure or drive <strong>any GPIO</strong> (display, backlight,
-    audio, LEDs, buttons, battery-sense) — the scaffold app stays
-    console-UART-only;</li>
+    <li>configure or drive any <strong>unverified GPIO</strong>. The current
+    exception is the M2 audio-only build on GPIO26/27/25; display, backlight,
+    LEDs, buttons, and battery-sense remain gated;</li>
     <li>assume PSRAM (the official listing specifies no PSRAM for this
     product; treat as absent and confirm from the boot log when relevant),
     SD slot, or battery-charger details beyond the official table;</li>
