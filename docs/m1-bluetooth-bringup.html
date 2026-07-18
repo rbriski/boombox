@@ -20,11 +20,15 @@
 </header>
 <main id="main">
   <h1>Milestone M1 — USB-only Bluetooth bring-up</h1>
-  <p><strong>Last verified:</strong> 2026-07-17 ·
-  <span class="status">Bench execution plan</span> ·
-  <strong>Repo state:</strong> documentation only — this page changes no
-  firmware, wiring, or hardware. The repository app is still the board-neutral
-  smoke app; the M1 A2DP work below has <strong>not</strong> been executed.</p>
+  <p><strong>Last verified:</strong> 2026-07-18 ·
+  <span class="status status--confirmed">Executed — PASS</span> ·
+  <strong>Repo state:</strong> the plan below has been run bench-side against
+  the single physical board. The board is flashed with the Idle-output
+  <code>a2dp_sink_stream</code> build (source-unmodified; only the
+  <a href="#strategy">Idle Output</a> menuconfig choice + device name were
+  set) and was left running it after a PASS. No repo firmware/wiring commit
+  was made by this bring-up — see <a href="#evidence">§9</a> for the run
+  record and evidence.</p>
   <p class="lede">A single-session, bench-usable plan to prove <em>one</em>
   thing: the ESP32 T-Display advertises as a Bluetooth speaker, a phone
   discovers and connects to it, and the serial monitor shows the A2DP
@@ -85,9 +89,10 @@
       <dd>Audible output, any I2S/DAC/amp/speaker work, GPIO configuration,
       display bring-up, AVRCP button control, power/enclosure work, and opening
       the boombox. These are later milestones and must not be attempted here.</dd>
-      <dt>Not &ldquo;done&rdquo;</dt>
-      <dd>M1 is a plan that has not been run. Passing it proves the transport
-      only; it does <strong>not</strong> mean any audio path works.</dd>
+      <dt>What passing does <em>not</em> mean</dt>
+      <dd>M1 has been run and passed (<a href="#evidence">§9</a>). Passing
+      proves the transport only; it does <strong>not</strong> mean any audio
+      path works — that is M2.</dd>
     </dl>
   </section>
 
@@ -563,9 +568,13 @@ idf.py -p &lt;port&gt; flash monitor
 
   <section aria-labelledby="evidence">
     <h2 id="evidence">9. Test &amp; evidence checklist</h2>
-    <p>Fill this at the bench. Save the full monitor capture to a file and
-    reference its path; paste only the key lines. Blank fields are for the
-    tester to complete.</p>
+    <p><strong>Run 2026-07-18, PASS (8/8).</strong> Full serial captures are
+    under <code>~/Library/Application&nbsp;Support/Boombox/m1/logs/</code>
+    (outside the repo; timestamped, not committed). Log excerpts below are
+    paraphrased from the raw captures; Bluetooth MACs are redacted here per
+    <a href="../AGENTS.md">AGENTS.md</a> — the full values are only in the
+    local log files. Two rows (2 and 6) are marked with the honest caveat
+    that the literal string was not observed on serial — see the notes.</p>
     <div class="table-scroll">
       <table>
         <caption>M1 evidence — expected observation, actual result, pass/fail</caption>
@@ -581,48 +590,154 @@ idf.py -p &lt;port&gt; flash monitor
         <tbody>
           <tr><th scope="row">1</th><td>BT stack + A2DP init</td>
           <td><code>A2DP PROF STATE: Init Complete</code></td>
-          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <td>Observed on every boot across all gate-C/D captures, e.g.
+          <code>I (1304) BT_AV: A2DP PROF STATE: Init Complete</code></td>
+          <td><span class="status status--confirmed">PASS</span></td></tr>
           <tr><th scope="row">2</th><td>Discovery</td>
-          <td>Device name visible on phone within ~10&nbsp;s</td>
-          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <td>Device name visible to the source within ~10&nbsp;s</td>
+          <td>macOS (via <code>bthelper list-paired</code> / the Bluetooth
+          pairing UI) discovered and listed the device as <strong>&ldquo;RX-5235
+          Digital Tape&rdquo;</strong> — confirming the name is actually
+          broadcast. <em>Caveat:</em> the firmware's GAP/A2DP handlers never
+          print the device-name string to serial (only
+          <code>esp_bt_gap_set_device_name()</code> in source, same handler as
+          the logged Init Complete); the name is verified operationally
+          (macOS-side) and via the hash-matched build/config, not by a literal
+          serial log line.</td>
+          <td><span class="status status--confirmed">PASS</span>
+          <em>(cross-system, not serial-logged)</em></td></tr>
           <tr><th scope="row">3</th><td>Pair + connect</td>
           <td><code>A2DP connection state: Connected, [MAC]</code></td>
-          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <td><code>I (64584) BT_AV: A2DP connection state: Connected,
+          [redacted]</code> (peer MAC present in the raw log, redacted here)</td>
+          <td><span class="status status--confirmed">PASS</span></td></tr>
           <tr><th scope="row">4</th><td>Stream start</td>
           <td><code>A2DP audio state: Started</code> + rising
           <code>Audio packet count</code></td>
-          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <td><code>A2DP audio state: Started</code> observed in 3 separate
+          bench sessions with monotonically rising
+          <code>Audio packet count</code>: 100&rarr;600 (6 increments),
+          100&rarr;1400 (14), and 100&rarr;2400 (24) — silence expected and
+          observed (Idle output discards decoded PCM; only the count proves the
+          stream).</td>
+          <td><span class="status status--confirmed">PASS</span></td></tr>
           <tr><th scope="row">5</th><td>Stream stop</td>
           <td><code>A2DP audio state: Suspended</code>; count stops</td>
-          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <td><code>A2DP audio state: Suspended</code> observed immediately
+          after the last packet-count line in all three sessions above; no
+          further increments logged afterward.</td>
+          <td><span class="status status--confirmed">PASS</span></td></tr>
           <tr><th scope="row">6</th><td>Disconnect &rarr; discoverable</td>
           <td><code>A2DP connection state: Disconnected</code>; re-appears in scan</td>
-          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <td><code>ESP_BT_GAP_ACL_DISC_CMPL_STAT_EVT Disconnected from
+          [redacted], reason: 0x116</code> observed. <em>Caveat:</em> no
+          scan-mode/discoverable serial log line exists in the firmware;
+          return-to-discoverable is inferred from the subsequent successful
+          reconnect (row 7) and forget/re-pair (row 8), which could not have
+          succeeded otherwise.</td>
+          <td><span class="status status--confirmed">PASS</span>
+          <em>(discoverability inferred, not directly logged)</em></td></tr>
           <tr><th scope="row">7</th><td>Reconnect</td>
           <td><code>Connected</code> again without re-pairing</td>
-          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <td>ACL connect &rarr; encryption established &rarr; A2DP
+          <code>Connected</code>, with <strong>no</strong>
+          <code>ESP_BT_GAP_CFM_REQ_EVT</code> (SSP prompt) in that log
+          window — a bonded reconnect using the stored link key, no human
+          interaction.</td>
+          <td><span class="status status--confirmed">PASS</span></td></tr>
           <tr><th scope="row">8</th><td>Re-pair from scratch</td>
           <td>Forget + pair completes cleanly</td>
-          <td><span class="blank"></span></td><td><span class="blank"></span></td></tr>
+          <td>Bond removed via the human's macOS &ldquo;Forget This
+          Device&rdquo; action. First re-pair attempt: SSP numeric-comparison
+          (<code>ESP_BT_GAP_CFM_REQ_EVT</code>) with no confirming tap in the
+          board's own window &rarr; <code>Authentication fail reason 5</code>,
+          <code>status: 9</code>, link key type 0 (failed — the exact
+          &ldquo;a bare CLI has no window to auto-answer the OS pairing
+          dialog&rdquo; boundary this bead pre-authorized reporting). Second
+          attempt, human tapped Confirm on the macOS dialog: SSP
+          numeric-comparison &rarr; <code>authentication success</code> &rarr;
+          link key type <strong>5</strong> (valid) &rarr; A2DP
+          Connecting&rarr;Connected, then Started/packets/Suspended verified
+          again.</td>
+          <td><span class="status status--confirmed">PASS</span>
+          <em>(one human SSP confirmation tap required; see
+          §9.2)</em></td></tr>
         </tbody>
       </table>
     </div>
     <h3 id="evidence-run">9.1 Run record</h3>
     <dl class="kv">
-      <dt>Date / time</dt><dd><span class="blank"></span></dd>
-      <dt>Phone + OS / app(s)</dt><dd><span class="blank"></span></dd>
-      <dt>Device name flashed</dt><dd><span class="blank"></span></dd>
-      <dt>Serial port</dt><dd><span class="blank"></span></dd>
-      <dt>Build commit (bench project)</dt><dd><span class="blank"></span></dd>
-      <dt>Config hash (<code>shasum -a 256 sdkconfig</code>)</dt><dd><span class="blank"></span></dd>
-      <dt>Monitor log excerpt path</dt><dd><span class="blank"></span></dd>
-      <dt>Overall M1 result</dt><dd><span class="blank"></span></dd>
+      <dt>Date / time</dt><dd>2026-07-18, ~03:52–15:56 UTC (three bench
+      sessions: Gate C flash + init; Gate D steps 1–7; Gate D step 8)</dd>
+      <dt>A2DP source</dt><dd><strong>Development Mac (MacBook Pro), not a
+      phone.</strong> Bluetooth pairing/connect/disconnect and audio-output
+      routing were driven via <code>bthelper</code> (bb-fdz.6, a bounded local
+      Swift/IOBluetooth+CoreAudio CLI helper) and macOS's own Bluetooth
+      settings UI for the two actions bthelper cannot perform (forgetting a
+      bond — no public Classic-BT unpair API — and confirming the SSP
+      numeric-comparison dialog, which the OS attributes to no headless
+      process). Playback used the system <code>afplay</code> with
+      <code>/System/Library/Sounds/Glass.aiff</code>. No phone was used; this
+      is stated transparently rather than implied. The Mac's default audio
+      output was restored to <code>BuiltInSpeakerDevice</code> after every
+      session.</dd>
+      <dt>Device name flashed</dt><dd><code>RX-5235 Digital Tape</code>
+      (<code>CONFIG_EXAMPLE_LOCAL_DEVICE_NAME</code>)</dd>
+      <dt>Serial port</dt><dd><code>/dev/cu.usbserial-5B1F0057851</code>
+      (CH9102 bridge; rediscover each session)</dd>
+      <dt>Build artifact</dt><dd><code>a2dp_sink_stream.bin</code>,
+      SHA-256 <code>355f6f1c0689a3ec64b141fbd25f6eba75c6e78047cdd93d72d3f804efcca89e</code>
+      (931,968 bytes); flashed via ordinary <code>idf.py ... flash</code>
+      (no erase-flash) — verified in the flash log's per-region &ldquo;Hash of
+      data verified&rdquo; lines.</dd>
+      <dt>Config hash (<code>shasum -a 256 sdkconfig</code>)</dt>
+      <dd><code>1fc75906d307536d056f93671d987f140a2556b934b02391b85320dd6cf2d2d3</code>
+      — confirmed <code>CONFIG_EXAMPLE_A2DP_SINK_OUTPUT_IDLE=y</code>;
+      <code>_INTERNAL_DAC</code> / <code>_EXTERNAL_I2S</code> not set; no
+      <code>EXAMPLE_I2S_*_PIN</code> symbol present.</dd>
+      <dt>Monitor log excerpt paths</dt>
+      <dd><code>m1/logs/gate-c-monitor-20260718T035257Z.log</code>,
+      <code>gate-d-live-window-20260718T151911Z.log</code>,
+      <code>gate-d-live-window-20260718T152257Z.log</code>,
+      <code>gate-d-step8-repair-20260718T153244Z.log</code> (failed re-pair
+      attempt), <code>gate-d-step8-repair2-20260718T153842Z.log</code>
+      (successful re-pair), <code>gate-d-step8-live-20260718T154030Z.log</code>
+      (post-re-pair Started/packets/Suspended) — all under
+      <code>~/Library/Application&nbsp;Support/Boombox/m1/logs/</code>, not
+      committed to the repo.</dd>
+      <dt>Overall M1 result</dt><dd><span class="status status--confirmed">PASS
+      — all 8 rows</span>. One unavoidable human interaction across the whole
+      run: confirming the macOS SSP numeric-comparison dialog for the
+      from-scratch re-pair in row 8 (no public API lets a bare CLI process
+      auto-answer that OS security dialog on behalf of a human). See
+      <a href="#handoff">§12</a> for board end state.</dd>
     </dl>
+    <h3 id="evidence-2">9.2 Honesty notes on evidence strength</h3>
+    <ul>
+      <li><strong>Device name (row 2):</strong> never appears as a literal
+      string in any raw serial capture — the firmware's stack-up handler calls
+      <code>esp_bt_gap_set_device_name()</code> but does not log the name.
+      Confirmed by (a) the hash-matched build/config recording
+      <code>CONFIG_EXAMPLE_LOCAL_DEVICE_NAME="RX-5235 Digital Tape"</code> and
+      (b) macOS independently discovering and listing a device by that exact
+      name during pairing — the OS could only know that name from the air.</li>
+      <li><strong>Discoverable after disconnect (row 6):</strong> no
+      scan-mode/discoverable log line exists in this firmware at all (verified
+      absent across every capture). Treated as PASS because the subsequent
+      reconnect (row 7) and full forget/re-pair (row 8) are only possible if
+      the board was in fact discoverable/connectable in between — but this is
+      an inference from later behavior, not a directly logged fact.</li>
+      <li>Everything else in the table above (Init Complete, Connected with a
+      peer MAC, Started/packet-count/Suspended across three independent
+      sessions, the CFM_REQ-based reconnect vs. re-pair distinction, the
+      failed-then-successful SSP sequence) was independently re-verified
+      against the raw <code>.log</code> files for this Gate&nbsp;E audit, not
+      taken from summary <code>.md</code> files alone.</li>
+    </ul>
     <p class="note"><strong>Pass = definition of done met</strong>
     (<a href="#objective">§1</a>): discoverable, paired, connected, and a rising
-    packet count with clean reconnect — all with no DAC. Record the outcome on
-    the M1 bead; do not mark the milestone &ldquo;complete&rdquo; beyond what the
-    evidence shows.</p>
+    packet count with clean reconnect — all with no DAC. Recorded on the M1
+    bead (bb-fdz.4, closed) and audited here (bb-fdz.5).</p>
   </section>
 
   <section aria-labelledby="troubleshoot">
@@ -724,14 +839,23 @@ idf.py -p &lt;port&gt; flash monitor
   <section aria-labelledby="handoff">
     <h2 id="handoff">12. Completion &amp; M1&rarr;M2 handoff</h2>
     <ul class="checklist">
-      <li>All <a href="#evidence">§9</a> rows recorded; monitor excerpt saved and
-      referenced.</li>
-      <li>Config hash and device name logged; sdkconfig deltas from stock noted
-      in the <a href="rx5235-build-plan.html#decision-log">decision log</a>.</li>
-      <li>Board rolled back to the smoke app (or left on the M1 build
-      deliberately, noted on the bead).</li>
-      <li>M1 result recorded on the bead — <em>not</em> marked complete beyond
-      the evidence.</li>
+      <li><span class="status status--confirmed">DONE</span> All
+      <a href="#evidence">§9</a> rows recorded; monitor excerpts saved under
+      <code>m1/logs/</code> and referenced by path.</li>
+      <li><span class="status status--confirmed">DONE</span> Config hash and
+      device name logged (<a href="#evidence-run">§9.1</a>); this run made no
+      sdkconfig delta beyond the plan's own Idle-output + device-name choice,
+      so no additional decision-log row was needed for the config itself — the
+      Mac-as-source substitution is logged in the
+      <a href="rx5235-build-plan.html#decision-log">decision log</a>.</li>
+      <li><span class="status status--confirmed">DONE</span> Board
+      <strong>left running the M1 Idle-output build deliberately</strong> (not
+      rolled back to the smoke app) — no safety reason to stop it, and the M1
+      build is itself board-neutral (zero GPIO). Noted on bb-fdz.4.</li>
+      <li><span class="status status--confirmed">DONE</span> M1 result
+      recorded on bb-fdz.4 (closed, PASS) and independently audited on bb-fdz.5
+      — not marked complete beyond what §9's evidence shows, including the two
+      honesty caveats in <a href="#evidence-2">§9.2</a>.</li>
     </ul>
     <p><strong>What M1 does not touch — and what M2 picks up.</strong> Only after
     M1 passes do the PCM5102A checks begin, at

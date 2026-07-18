@@ -20,7 +20,7 @@
 </header>
 <main id="main">
   <h1>Panasonic RX-5235 &ldquo;Digital Tape&rdquo; — build &amp; integration plan</h1>
-  <p><strong>Last verified:</strong> 2026-07-17 ·
+  <p><strong>Last verified:</strong> 2026-07-18 ·
   <span class="status">Living execution plan</span> ·
   <strong>Repo state:</strong> documentation only — no firmware, wiring, or
   boombox change is made by this plan itself</p>
@@ -162,7 +162,7 @@
   <p>The supplied build guide was written before this repository's recent
   work landed, so several of its instructions are phrased as future work that
   is <strong>already done</strong>. This table is the authoritative state as
-  of 2026-07-17. When the guide and this table disagree, this table wins.</p>
+  of 2026-07-18. When the guide and this table disagree, this table wins.</p>
   <div class="table-scroll">
     <table>
       <caption>State of every major precondition, with evidence</caption>
@@ -260,9 +260,10 @@
           <em>drives pins</em> still stays gated (console UART only, zero GPIO)
           until the DAC-side strap check and the bench audio test close the
           remaining hardware gates (<a href="#wiring">§10</a>). The
-          <a href="m1-bluetooth-bringup.html">M1 Bluetooth transport test</a> is
-          itself zero-GPIO — the A2DP example's <em>Idle</em> output — so it is
-          not part of this gate and can run over USB now.</td>
+          <a href="m1-bluetooth-bringup.html">M1 Bluetooth transport test</a> was
+          itself zero-GPIO — the A2DP example's <em>Idle</em> output — and has
+          now <strong>PASSED</strong> (2026-07-18); the board is left running
+          that build. M2's DAC-side gate is unaffected and still open.</td>
         </tr>
         <tr>
           <td>PCM5102A module variant</td>
@@ -355,7 +356,7 @@
   return to if that milestone goes wrong.</p>
   <div class="table-scroll">
     <table>
-      <caption>Milestones with present status (2026-07-17), prerequisites, exit
+      <caption>Milestones with present status (2026-07-18), prerequisites, exit
       evidence, and rollback</caption>
       <thead>
         <tr>
@@ -389,18 +390,23 @@
           <td>ESP32 advertises as a Bluetooth speaker —
           <a href="m1-bluetooth-bringup.html"><strong>detailed USB-only
           bring-up plan</strong></a></td>
-          <td><span class="status status--confirmed">READY</span> — a USB-only
-          bench session with no pin review required: the M1 build selects the
-          A2DP example's <em>Idle</em> output, so it configures <strong>zero
-          GPIO</strong> and does not wait on any DAC/I2S work
-          (<a href="m1-bluetooth-bringup.html#gates">gate table</a>). Not yet
-          run — the repository app is still the board-neutral smoke app.</td>
+          <td><span class="status status--completed">PASS — 2026-07-18</span> —
+          run bench-side, zero GPIO (Idle output), no DAC connected. The A2DP
+          source was the <strong>development Mac</strong> (via the bounded
+          <code>bthelper</code> helper + macOS Bluetooth/Audio, not a phone —
+          stated transparently). All 8 evidence rows pass, including a
+          from-scratch forget/re-pair that required one human tap to confirm
+          the OS's SSP pairing dialog (no public API lets a bare CLI
+          auto-answer it). Full record:
+          <a href="m1-bluetooth-bringup.html#evidence">M1 evidence
+          checklist</a>. Board left running the M1 build deliberately.</td>
           <td>Verified backup + working toolchain + Bluetooth-capable board
           (all confirmed); <a href="#phase-3">Phase 3</a> in Idle-output mode.
           <strong>Not</strong> the §10.4 DAC pin review — M1 drives no pins.</td>
-          <td>Phone sees the device name; monitor shows
-          <code>Connected</code> + a rising <code>Audio packet count</code>;
-          log excerpt saved
+          <td>Mac (A2DP source) discovered the device name and connected;
+          monitor showed <code>Connected</code> + rising
+          <code>Audio packet count</code> across three sessions (100→600,
+          100→1400, 100→2400); log excerpts saved
           (<a href="m1-bluetooth-bringup.html#evidence">M1 evidence
           checklist</a>)</td>
           <td>Reflash smoke app; factory state restorable from backup</td>
@@ -527,7 +533,7 @@
   </div>
 
   <h2 id="next">7. Next three moves</h2>
-  <p>A truthful current-state dashboard, honest to 2026-07-17. The backup
+  <p>A truthful current-state dashboard, honest to 2026-07-18. The backup
   exists, the toolchain works, the smoke app is flashed, the board's product
   identity is confirmed, and — new this round — <strong>both the T-Display
   board and the PCM5102A module have been photographed and read</strong>
@@ -597,7 +603,7 @@
       <p><strong>Run the pin conflict review, then build the bench A2DP/DAC
       test.</strong>
       <span class="status status--confirmed">REVIEW: DAC PINS PASS</span>
-      <span class="status status--confirmed">M1 BENCH READY</span>
+      <span class="status status--completed">M1 BENCH PASS</span>
       <span class="status status--blocked">M2 DAC BENCH GATED</span></p>
       <ul>
         <li><strong>Done (documentary):</strong> candidate map&nbsp;B —
@@ -609,20 +615,24 @@
         <strong>No onboard conflict on this unit.</strong> The
         <a href="#verified-map">§10.4 verified table</a> is filled for
         BCK/LRCK/DATA accordingly.</li>
-        <li><strong>Remaining, split by milestone:</strong>
-        <strong>M1</strong> (<a href="#phase-3">Phase 3</a>) is a USB-only flash
-        of the example in <em>Idle</em> output — no module, no pins, no DAC — and
-        is ready to run now: see the
-        <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a>.
-        <strong>M2</strong> (<a href="#phase-4">Phase 4</a>) is the DAC-side
-        bench — the verified table's <em>powered-defaults</em> column, powering
-        the module, measuring the FLT/DEMP/XSMT/FMT defaults and SCK-to-GND,
-        then configuring standard I2S and confirming audio. No hardware was
-        powered in this round.</li>
-        <li><strong>Next input:</strong> for M1, none — run
-        <a href="m1-bluetooth-bringup.html">Phase 3 / M1</a> as a USB-only
-        session whenever convenient. For M2, Move 2's strap resolution, then
-        <a href="#phase-4">Phase 4</a> with the verified pin config.</li>
+        <li><strong>Done (bench):</strong> <strong>M1</strong>
+        (<a href="#phase-3">Phase 3</a>) ran 2026-07-18 — USB-only flash of the
+        example in <em>Idle</em> output, no module/pins/DAC involved, source
+        was the development Mac (not a phone). All 8 evidence rows PASS,
+        including a from-scratch re-pair after one human SSP-dialog
+        confirmation. See the
+        <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a> and
+        its <a href="m1-bluetooth-bringup.html#evidence">evidence
+        checklist</a>.</li>
+        <li><strong>Remaining:</strong> <strong>M2</strong>
+        (<a href="#phase-4">Phase 4</a>) is the DAC-side bench — the verified
+        table's <em>powered-defaults</em> column, powering the module,
+        measuring the FLT/DEMP/XSMT/FMT defaults and SCK-to-GND, then
+        configuring standard I2S and confirming audio. No hardware was powered
+        in this round; M1 passing does not change M2's gate.</li>
+        <li><strong>Next input:</strong> for M1, none — complete. For M2,
+        Move 2's strap resolution, then <a href="#phase-4">Phase 4</a> with the
+        verified pin config.</li>
       </ul>
     </li>
   </ol>
@@ -975,12 +985,14 @@
 
   <section class="phase">
     <h3 id="phase-3">Phase 3 — Flash the known-good A2DP sink example</h3>
-    <p><span class="status status--confirmed">READY</span> — a USB-only bench
-    session; the detailed, step-by-step version is the
-    <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a>. This
-    phase configures <strong>no pins</strong> (see Prerequisites), so it does
-    not wait on the §10 pin review. Example identity verified against the
-    pinned ESP-IDF version.</p>
+    <p><span class="status status--completed">PASS — 2026-07-18</span> — run
+    as a USB-only bench session; the detailed run record is the
+    <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a>
+    (<a href="m1-bluetooth-bringup.html#evidence">evidence checklist</a>).
+    This phase configured <strong>no pins</strong> (see Prerequisites), so it
+    did not wait on the §10 pin review. Example identity verified against the
+    pinned ESP-IDF version. The development Mac stood in for the phone as the
+    A2DP source (bounded local automation); no phone was used.</p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Prove the Bluetooth transport: make the ESP32 discoverable as a
@@ -1056,14 +1068,14 @@
     </ol>
     <p><strong>Record:</strong> sdkconfig deltas from stock, device name,
     monitor excerpt of a successful pairing.</p>
-    <p><strong>Pass:</strong> phone sees <code>RX-5235 Digital Tape</code>
-    (or the stock name if unchanged), pairs, and the monitor logs
+    <p><strong>Pass — met 2026-07-18:</strong> the A2DP source (development
+    Mac) saw <code>RX-5235 Digital Tape</code>, paired, and the monitor logged
     <code>A2DP audio state: Started</code> with a rising
     <code>Audio packet count</code> when playing — proof of stream with no DAC
-    attached. No-audio-yet is <em>not</em> a failure of this phase if pairing
-    works — that's Phase 4's job. The full step-by-step procedure, evidence
-    checklist, and troubleshooting are in the
-    <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a>.</p>
+    attached. No audible sound was expected or produced. The full run record,
+    evidence checklist, and honesty notes on evidence strength are in the
+    <a href="m1-bluetooth-bringup.html">M1 Bluetooth bring-up plan</a>
+    (<a href="m1-bluetooth-bringup.html#evidence">§9</a>).</p>
     <div class="stop"><p><strong>Stop condition:</strong> pairing fails
     repeatedly or the BT stack fails to start → capture the monitor output
     and work the <a href="#troubleshooting">§17 pairing table</a>; do not
@@ -2821,12 +2833,29 @@ Date: ______   By: ______</code></pre>
         <th scope="col">Photo/log ref</th></tr>
       </thead>
       <tbody>
-        <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
-        <td><span class="blank"></span></td><td><span class="blank"></span></td>
-        <td><span class="blank"></span></td></tr>
-        <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
-        <td><span class="blank"></span></td><td><span class="blank"></span></td>
-        <td><span class="blank"></span></td></tr>
+        <tr><td>2026-07-18</td>
+        <td>Used the development Mac, not a phone, as the M1 A2DP source
+        (pairing/connect/disconnect/output-routing via the bounded
+        <code>bthelper</code> helper + macOS's own Bluetooth settings UI).</td>
+        <td>Bead bb-fdz.4 pre-authorized the Mac as the standards-compliant
+        source for autonomous operation. No phone was available/required; the
+        substitution is stated transparently rather than implied.</td>
+        <td>None needed — read-only source substitution, no board/firmware
+        change.</td>
+        <td><a href="m1-bluetooth-bringup.html#evidence">M1 evidence
+        §9</a></td></tr>
+        <tr><td>2026-07-18</td>
+        <td>M1 forget/re-pair (evidence row 8) required one human tap on
+        macOS's SSP numeric-comparison dialog; the board's first attempt
+        failed (auth timeout) with no one present to confirm.</td>
+        <td>A bare, unsigned CLI process (<code>bthelper</code>) has no app
+        identity/window for macOS to attribute the OS pairing dialog to —
+        confirmed via source review of <code>bthelper</code> (bb-fdz.6) and
+        two live attempts. No workaround exists via public API.</td>
+        <td>None — re-run the pair with a human present at the dialog; no
+        state to undo.</td>
+        <td><a href="m1-bluetooth-bringup.html#evidence">M1 evidence
+        §9, row 8</a></td></tr>
         <tr><td><span class="blank"></span></td><td><span class="blank"></span></td>
         <td><span class="blank"></span></td><td><span class="blank"></span></td>
         <td><span class="blank"></span></td></tr>
