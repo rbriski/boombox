@@ -28,6 +28,11 @@
   assignment is checked against the official Q125/V18 pinout, schematic, boot
   straps, header exposure, and onboard functions. The authoritative table is
   <a href="rx5235-build-plan.html#verified-map">build plan §10.4</a>.</p>
+  <p><strong>M2 live state (2026-07-18):</strong> the audited Philips-I2S
+  image is flashed. It booted on ESP-IDF v6.0.2, reconnected over A2DP,
+  configured the external-I2S service at 44.1&nbsp;kHz, and processed five
+  packet-bearing playback trials. A physical audible or AC-meter observation
+  at the PCM5102A output is still required before M2 is complete.</p>
 
   <h2 id="verified">What is measured (read-only identification, 2026-07-17)</h2>
   <div class="table-scroll">

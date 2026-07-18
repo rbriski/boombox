@@ -17,7 +17,9 @@ build/integration plan in
   photo-verified (T-Display V1.1, 2019-06-28) and TFT_RST is resolved from the
   official schematic (GPIO23). The DAC powered-state check and M2 pin sign-off
   passed on 2026-07-18: BCK/LRCK/DIN = GPIO26/27/25, FMT low (Philips I2S),
-  XSMT high, and SCK grounded. End-to-end external-amp audio remains to test.
+  XSMT high, and SCK grounded. The audited M2 image is now flashed; Bluetooth,
+  44.1 kHz external-I2S configuration, and five packet-bearing playback cycles
+  passed. Physical PCM5102A line output through an amp or meter remains to test.
 - Toolchain: **native ESP-IDF**, version pinned in [`.espidf-version`](.espidf-version).
   All scripts read that file; CI mirrors it in `.github/workflows/ci.yml`.
 - No git remote exists; work lands on **local `main`**. Do not create or

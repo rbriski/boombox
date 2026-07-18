@@ -254,7 +254,7 @@
         </tr>
         <tr>
           <td>Pin-dependent firmware work</td>
-          <td><span class="status">M2 AUDIO BENCH READY</span></td>
+          <td><span class="status">M2 DIGITAL PATH PASS / ANALOG CHECK PENDING</span></td>
           <td>The documentary pin-conflict review is complete for M2: I2S
           map&nbsp;B (BCK&nbsp;26 / LRCK&nbsp;27 / DATA&nbsp;25) is confirmed
           conflict-free on this unit against the official schematic and the
@@ -265,9 +265,12 @@
           A3V3 jumper; SCK 0&nbsp;V after its ground jumper. The
           <a href="m1-bluetooth-bringup.html">M1 Bluetooth transport test</a> was
           itself zero-GPIO — the A2DP example's <em>Idle</em> output — and has
-          now <strong>PASSED</strong> (2026-07-18); the board is left running
-          that build until the deliberate M2 flash. All GPIO outside the three
-          verified M2 pins remains gated.</td>
+          now <strong>PASSED</strong> (2026-07-18). The deliberate M2 flash has
+          also completed: boot, A2DP reconnect, 44.1&nbsp;kHz external-I2S
+          configuration, and five packet-bearing playback cycles passed. The
+          board is left running the M2 image; physical PCM5102A line output is
+          the remaining M2 check. All GPIO outside the three verified M2 pins
+          remains gated.</td>
         </tr>
         <tr>
           <td>PCM5102A module variant</td>
@@ -422,11 +425,13 @@
         <tr>
           <th scope="row" id="m2">M2</th>
           <td>Phone audio plays via PCM5102A into an external amp</td>
-          <td><span class="status">READY / IN PROGRESS — 2026-07-18</span> —
+          <td><span class="status">DIGITAL PATH PASS / PHYSICAL CHECK IN PROGRESS — 2026-07-18</span> —
           M1 passes; DAC powered state is measured; XSMT is jumpered high;
           SCK is grounded; BCK/LRCK/DIN = 26/27/25 is wired. The audited M2
           build uses Philips timing to match measured FMT low. Ordinary flash,
-          serial evidence, and physical external-amp output remain.</td>
+          boot, A2DP reconnect, 44.1&nbsp;kHz I2S configuration, and five
+          packet-bearing playback cycles pass. Physical PCM5102A output through
+          the external amp or a meter remains.</td>
           <td>M1; <a href="#phase-2">Phase 2</a>, <a href="#phase-4">Phase 4</a></td>
           <td><a href="#test-audio">Audio test matrix</a> rows pass; noise
           notes recorded</td>
@@ -614,7 +619,7 @@
       test.</strong>
       <span class="status status--confirmed">REVIEW: DAC PINS PASS</span>
       <span class="status status--completed">M1 BENCH PASS</span>
-      <span class="status">M2 AUDIO BENCH READY</span></p>
+      <span class="status">M2 DIGITAL PATH PASS / ANALOG CHECK PENDING</span></p>
       <ul>
         <li><strong>Done (documentary):</strong> candidate map&nbsp;B —
         BCK&nbsp;26, LRCK&nbsp;27, DATA&nbsp;25 (the v6.0.2
@@ -641,12 +646,18 @@
         timing, which conflicts with measured FMT low. The M2 bench build
         therefore uses the driver's Philips slot macro at both initialization
         and runtime reconfiguration.</li>
-        <li><strong>Remaining:</strong> verify the attached board and preserved
-        backup, perform one ordinary explicit flash (no erase), capture A2DP
-        and I2S serial evidence, and confirm physical line output through a
-        low-volume external amp or AC measurement.</li>
-        <li><strong>Next input:</strong> <a href="#phase-4">Phase 4</a> with the
-        audited Philips-I2S build and the verified bench wiring.</li>
+        <li><strong>Done (M2 digital path, 2026-07-18):</strong> read-only board
+        identity and the preserved backup were reverified; one ordinary
+        explicit flash completed with per-region hash verification and no bulk
+        erase. The development Mac reconnected, the external-I2S service
+        configured at 44.1&nbsp;kHz, and five low-volume trials each showed
+        <code>Started</code>, I2S ringbuffer processing, packet count 100, and
+        <code>Suspended</code>. Mac audio output was restored afterward.</li>
+        <li><strong>Remaining:</strong> confirm physical PCM5102A line output
+        through a low-volume external amp or AC measurement. Serial proves the
+        digital path, not the analog output.</li>
+        <li><strong>Next input:</strong> the user's audible or meter observation
+        from <a href="#phase-4">Phase 4</a>.</li>
       </ul>
     </li>
   </ol>
@@ -1096,10 +1107,10 @@
 
   <section class="phase">
     <h3 id="phase-4">Phase 4 — First audio bench test (external amplifier)</h3>
-    <p><span class="status">READY / IN PROGRESS — 2026-07-18</span> — M1,
+    <p><span class="status">DIGITAL PATH PASS / PHYSICAL CHECK IN PROGRESS — 2026-07-18</span> — M1,
     powered DAC configuration, verified pin map, and wiring are complete. The
-    Philips-I2S image is built and audited; flash, serial capture, and physical
-    output remain.</p>
+    Philips-I2S image is flashed and its boot/A2DP/I2S packet path passes;
+    physical PCM5102A output remains.</p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Prove phone → ESP32 → PCM5102A → external amp/speaker end-to-end,
