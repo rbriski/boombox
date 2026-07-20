@@ -1,10 +1,11 @@
 /*
- * Boombox — board-neutral serial hello-world.
+ * Boombox — display-only bring-up (Phase 5, M3 gate B).
  *
- * The physical board model is unconfirmed (docs/hardware.html), so this app must
- * not touch any GPIO: it uses only the default console UART via the on-board
- * USB bridge. It prints what the chip can report about itself, then heartbeats
- * so a monitor session shows the firmware is alive.
+ * Board identity and the onboard ST7789 pin set are confirmed
+ * (docs/hardware.html, docs/rx5235-build-plan.html §10.1/§10.4); this app
+ * drives only the display (via boombox_ui) — no Bluetooth/audio yet, per
+ * the Phase 5 "display-only test project first" step. main stays thin:
+ * init the display, draw the boot screen, then heartbeat.
  */
 
 #include <inttypes.h>
@@ -20,6 +21,8 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "sdkconfig.h"
+
+#include "boombox_ui.h"
 
 #define HEARTBEAT_PERIOD_MS 5000
 
@@ -53,7 +56,14 @@ void app_main(void)
     }
 
     ESP_LOGI(TAG, "Minimum free heap: %" PRIu32 " bytes", esp_get_minimum_free_heap_size());
-    ESP_LOGI(TAG, "Board model unconfirmed — no peripherals enabled (see docs/hardware.html)");
+
+    esp_err_t ui_err = boombox_ui_init();
+    if (ui_err == ESP_OK) {
+        ui_err = boombox_ui_show_boot_screen();
+    }
+    if (ui_err != ESP_OK) {
+        ESP_LOGE(TAG, "display bring-up failed: %s", esp_err_to_name(ui_err));
+    }
 
     for (;;) {
         int64_t uptime_s = esp_timer_get_time() / 1000000;

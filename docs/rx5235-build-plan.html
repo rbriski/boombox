@@ -449,12 +449,15 @@
           <td>Screen shows RX-5235 UI while audio plays cleanly</td>
           <td><span class="status status--blocked">BLOCKED / HOLD</span> —
           <a href="#gate-a">Gate A</a> (extended Phase 4 qualification) needs
-          a live human bench session; machine-verifiable state reconfirmed
-          2026-07-20, nothing beyond that obtained</td>
-          <td>M2; <a href="#gate-a">Gate A</a>, <a href="#phase-5">Phase 5</a></td>
+          a live human bench session; <a href="#gate-b">Gate B</a>
+          display-only firmware is code/build-complete but not yet flashed
+          or physically observed (2026-07-20)</td>
+          <td>M2; <a href="#gate-a">Gate A</a>, <a href="#phase-5">Phase 5</a>,
+          <a href="#gate-b">Gate B</a></td>
           <td><a href="#test-coexist">Display/audio coexistence matrix</a>
           passes</td>
-          <td>Disable UI task; audio-only build still tagged in git</td>
+          <td>Disable UI task; audio-only build tagged
+          <code>audio-only-m2-gate-a</code> in git</td>
           <td>No</td>
         </tr>
         <tr>
@@ -1270,9 +1273,12 @@
 
   <section class="phase">
     <h3 id="phase-5">Phase 5 — Display bring-up without breaking audio</h3>
-    <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
-    the extended Phase 4 stereo/noise/level/long-run qualification. The core
-    M2 end-to-end proof passes, but display work has not been authorized.</p>
+    <p><span class="status status--conditional">DISPLAY-ONLY CODE LANDED,
+    NOT YET FLASHED</span> — <a href="#gate-b">Gate B</a> (bb-ro9) implemented
+    and build-verified the display-only firmware below; it has not been
+    flashed or physically observed this session (see Gate B). Gate A's
+    extended audio qualification is still separately open and continues to
+    gate merging display output into the A2DP project (this phase's step 3).</p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Light up the onboard ST7789 1.14&Prime; 135&times;240 IPS panel
@@ -1320,6 +1326,93 @@
     <div class="stop"><p><strong>Stop condition:</strong> audio drops when
     the display updates → treat as a scheduling/DMA problem (§15 task
     layout, §17 row), not a reason to change wiring.</p></div>
+
+    <h4 id="gate-b">M3 Gate B — display-only ST7789 bring-up (bb-ro9)</h4>
+    <p><span class="status status--conditional">CODE + BUILD EVIDENCE ONLY —
+    2026-07-20</span> — this session implemented and build-verified the
+    Phase 5 display-only firmware but did <strong>not</strong> flash it or
+    physically observe the panel. Recorded honestly rather than guessed, per
+    this project's rule against claiming unobtained observations.</p>
+    <p><strong>Landed this session:</strong></p>
+    <ul>
+      <li><code>components/boombox_board/include/boombox_board.h</code> —
+      the single source of truth for the confirmed display pin set (TFT
+      MOSI&nbsp;19, SCLK&nbsp;18, CS&nbsp;5, DC&nbsp;16, RST&nbsp;23, BL&nbsp;4,
+      per §10.1/§10.4) plus a board-level record of the verified M2 I2S pins
+      (26/27/25). No pin is defined anywhere else.</li>
+      <li><code>components/boombox_ui/</code> — ST7789 bring-up via IDF's
+      built-in <code>esp_lcd</code> (SPI panel IO + <code>esp_lcd_new_panel_st7789</code>,
+      no external display library / component-manager fetch needed),
+      backlight PWM via LEDC, a minimal embedded 5&times;7 font covering the
+      boot-screen glyph set, and <code>boombox_ui_show_boot_screen()</code>
+      rendering <code>RX-5235</code> / <code>DIGITAL TAPE</code> centered on
+      a landscape 240&times;135 framebuffer (native panel is 135&times;240
+      portrait; landscape via <code>esp_lcd_panel_swap_xy</code> +
+      <code>esp_lcd_panel_mirror</code>, gap offset 40/53 — a starting value
+      from the panel's known non-visible border, <strong>not yet confirmed
+      against the physical render</strong>).</li>
+      <li><code>main/boombox_main.c</code> stays thin: calls
+      <code>boombox_ui_init()</code> then <code>boombox_ui_show_boot_screen()</code>
+      once at boot, no Bluetooth/audio init — matches the &ldquo;display-only
+      test first&rdquo; step. Backlight is left at 0% until the boot screen
+      is drawn, then set to 60%; redraws are one-shot at boot, not a
+      constant loop (event-driven redraw strategy for future screen states
+      is left as a follow-on once a state machine exists to drive it).</li>
+      <li><code>idf.py build</code> succeeds cleanly (zero warnings) against
+      the pinned ESP-IDF v6.0.2 tree: <code>boombox.bin</code> 0x2f890 bytes,
+      81% of the app partition free. <code>scripts/build.sh</code> itself
+      still fails at this environment's pre-existing venv defect (bb-qr8,
+      unrelated to this change — reproduced on untouched <code>origin/main</code>
+      by the Gate A refinery run); this session verified the build directly
+      via <code>idf.py</code> under a differently-provisioned IDF venv
+      (<code>idf6.0_py3.13_env</code>) as a workaround, not a repo change.</li>
+      <li>Git tag <code>audio-only-m2-gate-a</code> on
+      <code>b522d31</code> (the last commit before any display/GPIO code) —
+      the identifiable audio-only rollback point this phase's plan
+      requires.</li>
+    </ul>
+    <p><strong>Blocked — needs more bench time than this session had:</strong></p>
+    <ul>
+      <li><strong>Flash backup refresh:</strong> the on-file backup
+      (<code>boombox-flash-backup-20260717-144304-16MB.bin</code>) predates
+      the 2026-07-18 M2 audio flash, so it is not an accurate rollback point
+      for a write made now. A fresh full 16&nbsp;MB read was attempted at
+      460800/230400/115200 baud; 460800 failed immediately
+      (&ldquo;Invalid head of packet&rdquo;, likely cable/hub-adjacent serial
+      noise), 230400 stalled and errored around 8.9% (&ldquo;Packet content
+      transfer stopped&rdquo;), and 115200 did not complete inside this
+      session's time budget. No partial backup file was left in place. Per
+      this repo's hard rule 2 (back up before writing), <strong>no flash
+      write was performed</strong>.</li>
+      <li><strong>Physical render:</strong> even with a successful flash,
+      confirming the rendered text, chosen rotation, and backlight
+      brightness levels requires a human looking at the physical panel —
+      this session has no camera/visual channel to the bench. The landscape
+      swap/mirror/gap-offset choice above is a documented starting point,
+      not a confirmed one.</li>
+    </ul>
+    <p><strong>Gate B bench protocol (ready to run in one live session):</strong></p>
+    <ol>
+      <li>Retake the flash backup at a conservative baud (115200, allow
+      it to run to completion — roughly 20&ndash;25&nbsp;min for
+      16&nbsp;MB over this CH9102 bridge) or investigate the serial
+      reliability issue first (direct cable, no hub, alternate USB port).
+      Record path, size, and <code>shasum -a 256</code>.</li>
+      <li><code>scripts/build.sh -p /dev/cu.usbserial-XXXX flash monitor</code>
+      (ordinary explicit flash, no erase) and capture the boot log:
+      <code>boombox_ui: ST7789 init done</code> /
+      <code>boombox_ui: boot screen drawn</code> lines with no crash/panic
+      is the machine-verifiable half of this gate.</li>
+      <li>Human looks at the panel and reports: is <code>RX-5235</code> /
+      <code>DIGITAL TAPE</code> legible and correctly oriented (landscape,
+      cassette-window fit), does the chosen gap offset clip or misalign the
+      text, and is 60% backlight duty a sane default brightness. Adjust
+      <code>BOOMBOX_UI_GAP_X</code>/<code>_GAP_Y</code> and rotation in
+      <code>components/boombox_ui/boombox_ui.c</code> if not.</li>
+    </ol>
+    <p>Until that protocol runs, the physical half of this phase's
+    &ldquo;Pass&rdquo; condition and the coexistence-matrix step remain
+    open; the code/build half is done and merge-reviewable now.</p>
   </section>
 
   <section class="phase">
