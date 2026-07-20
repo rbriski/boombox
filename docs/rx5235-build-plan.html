@@ -1415,6 +1415,96 @@
     open; the code/build half is done and merge-reviewable now.</p>
   </section>
 
+  <section>
+    <h4 id="gate-c-prereq">M3 Gate C prerequisite — port the verified M2
+    A2DP/I2S path into <code>boombox_audio</code> (bb-7gl.1)</h4>
+    <p><span class="status status--conditional">CODE + BUILD EVIDENCE ONLY —
+    2026-07-20</span> — M2 (<a href="#m2">M2</a>, <a href="#phase-4">Phase
+    4</a>) passed on hardware using a throwaway ESP-IDF v6.0.2
+    <code>a2dp_sink_stream</code> project kept outside this repository.
+    Gate C review found no A2DP or external-I2S implementation anywhere in
+    repository history — nothing durable existed for
+    <code>boombox_ui</code>/Gate C to integrate against. This session ports
+    the M2-verified behavior into a repository-native
+    <code>components/boombox_audio</code> component. Software-only, per this
+    project's hard rules: no flash, erase, rewire, or physical verification
+    was performed or is claimed here. Hardware backup/display verification
+    remains bb-qea; integrated coexistence testing
+    remains bb-475.</p>
+    <p><strong>Ported from</strong> the pinned example tree
+    (<code>examples/bluetooth/bluedroid/classic_bt/a2dp_sink_stream</code>
+    and its <code>common/</code> helper components —
+    <code>bredr_app_common_utils</code>, <code>bt_app_core_utils</code>,
+    <code>a2dp_utils/a2dp_sink_common_utils</code>,
+    <code>a2dp_utils/a2dp_sink_int_codec_utils</code>/
+    <code>audio_sink_service_i2s.c</code> — at <code>.espidf-version</code>,
+    v6.0.2), consolidated into two files:</p>
+    <ul>
+      <li><code>components/boombox_audio/boombox_audio.c</code> — NVS +
+      classic-BT controller + Bluedroid bring-up (from
+      <code>bredr_app_common_utils</code>), the app-task work-dispatch queue
+      (from <code>bt_app_core_utils</code>), trimmed GAP/device event
+      logging, and the A2DP sink event/data callbacks (from
+      <code>a2dp_sink_common_utils</code> /
+      <code>a2dp_sink_int_codec_utils</code>) that drive the bounded
+      connection/stream state and packet counter Gate C polls via
+      <code>boombox_audio.h</code>.</li>
+      <li><code>components/boombox_audio/boombox_audio_i2s.c</code> — the
+      I2S sink service (from <code>audio_sink_service_i2s.c</code>),
+      re-pinned to <code>components/boombox_board</code> (BCK/LRCK/DIN =
+      GPIO26/27/25, the verified §10.4 map) with the ring-buffer/drain-task
+      pipeline unchanged.</li>
+    </ul>
+    <p><strong>The one behavioral delta from the pinned example</strong>
+    (the reason this is a &ldquo;port,&rdquo; not a straight copy): every
+    <code>I2S_STD_MSB_SLOT_DEFAULT_CONFIG</code> call site in the stock
+    <code>audio_sink_service_i2s.c</code> (channel open and codec
+    reconfigure — two sites) is
+    <code>I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG</code> in
+    <code>boombox_audio_i2s.c</code> instead. The stock macro is
+    MSB/left-justified timing; the PCM5102A's measured FMT-low strap
+    (<a href="#verified-map">§10.4</a>, <a href="#m2">M2</a>) requires
+    Philips I2S timing, and this substitution is exactly what the M2 bench
+    build carried locally on the throwaway project. Sample rate (44.1 kHz),
+    bit width (16-bit), and channel count (stereo, negotiated from the SBC
+    codec config same as upstream) are otherwise unchanged from the pinned
+    example — including its <code>I2S_STD_CLK_DEFAULT_CONFIG</code> clock
+    source (<code>I2S_CLK_SRC_DEFAULT</code> / PLL_F160M on classic ESP32),
+    which is what the M2 hardware pass actually used and measured working;
+    the APLL aspiration noted in <a href="#fw-i2s">§15.4</a> was written
+    before M2 flashed and remains an unconfirmed future refinement, not
+    something this port silently substitutes.</p>
+    <p><strong>Deliberately not ported</strong> (out of scope for this
+    prerequisite — M2 only exercised A2DP + external I2S): AVRCP, the
+    external-codec (undecoded-audio) variant, and the internal-DAC/idle
+    output variants from the pinned example's Kconfig choice. Secure Simple
+    Pairing is left disabled (fixed pin code &ldquo;1234&rdquo;), matching
+    how M2 paired.</p>
+    <p><strong>Also landed this session:</strong></p>
+    <ul>
+      <li><code>sdkconfig.defaults</code> — added
+      <code>CONFIG_BT_ENABLED</code>, <code>CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY</code>,
+      <code>CONFIG_BT_BLUEDROID_ENABLED</code>, <code>CONFIG_BT_CLASSIC_ENABLED</code>,
+      <code>CONFIG_BT_A2DP_ENABLE</code>, matching the pinned example's own
+      <code>sdkconfig.defaults</code>. Board-neutral — no GPIO is implied.</li>
+      <li><code>main/boombox_main.c</code> stays thin: one
+      <code>boombox_audio_init()</code> call after display bring-up, plus
+      connection/stream state and packet count appended to the existing
+      heartbeat log line for Gate C to observe over serial without new
+      tooling. The existing display-only code (<a href="#gate-b">Gate
+      B</a>) is otherwise untouched.</li>
+      <li><code>idf.py build</code> succeeds cleanly against the pinned
+      ESP-IDF v6.0.2 tree via the same <code>idf6.0_py3.13_env</code>
+      workaround Gate B used (<code>scripts/build.sh</code>'s pre-existing
+      venv defect, bb-qr8, is unrelated to this change).</li>
+    </ul>
+    <p>What this prerequisite does <strong>not</strong> establish: that the
+    ported code behaves identically to the throwaway M2 project on this
+    specific board. It was built, not flashed. Gate C's own bench pass
+    (hardware backup, flash, and human-observed reconnect/playback/display
+    coexistence) is the step that closes that gap.</p>
+  </section>
+
   <section class="phase">
     <h3 id="phase-6">Phase 6 — AVRCP metadata and bench controls</h3>
     <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits

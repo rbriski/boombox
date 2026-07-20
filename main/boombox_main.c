@@ -1,11 +1,13 @@
 /*
- * Boombox — display-only bring-up (Phase 5, M3 gate B).
+ * Boombox — display + audio bring-up (Phase 5/M3, Gate C prerequisite
+ * bb-7gl.1).
  *
  * Board identity and the onboard ST7789 pin set are confirmed
- * (docs/hardware.html, docs/rx5235-build-plan.html §10.1/§10.4); this app
- * drives only the display (via boombox_ui) — no Bluetooth/audio yet, per
- * the Phase 5 "display-only test project first" step. main stays thin:
- * init the display, draw the boot screen, then heartbeat.
+ * (docs/hardware.html, docs/rx5235-build-plan.html §10.1/§10.4); the M2
+ * A2DP/I2S path is confirmed via components/boombox_audio. main stays
+ * thin: init the display, draw the boot screen, init audio, then
+ * heartbeat. This session builds and documents the port only — it does not
+ * flash or claim physical verification (that remains bb-qea/bb-475).
  */
 
 #include <inttypes.h>
@@ -22,6 +24,7 @@
 #include "esp_timer.h"
 #include "sdkconfig.h"
 
+#include "boombox_audio.h"
 #include "boombox_ui.h"
 
 #define HEARTBEAT_PERIOD_MS 5000
@@ -65,10 +68,18 @@ void app_main(void)
         ESP_LOGE(TAG, "display bring-up failed: %s", esp_err_to_name(ui_err));
     }
 
+    esp_err_t audio_err = boombox_audio_init();
+    if (audio_err != ESP_OK) {
+        ESP_LOGE(TAG, "audio bring-up failed: %s", esp_err_to_name(audio_err));
+    }
+
     for (;;) {
         int64_t uptime_s = esp_timer_get_time() / 1000000;
-        ESP_LOGI(TAG, "heartbeat: uptime %" PRId64 " s, free heap %" PRIu32 " bytes",
-                 uptime_s, esp_get_free_heap_size());
+        ESP_LOGI(TAG, "heartbeat: uptime %" PRId64 " s, free heap %" PRIu32 " bytes, "
+                      "audio conn %d stream %d packets %" PRIu32,
+                 uptime_s, esp_get_free_heap_size(),
+                 boombox_audio_get_connection_state(), boombox_audio_get_stream_state(),
+                 boombox_audio_get_packet_count());
         vTaskDelay(pdMS_TO_TICKS(HEARTBEAT_PERIOD_MS));
     }
 }
