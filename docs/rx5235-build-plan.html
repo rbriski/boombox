@@ -447,8 +447,11 @@
         <tr>
           <th scope="row">M3</th>
           <td>Screen shows RX-5235 UI while audio plays cleanly</td>
-          <td><span class="status status--blocked">BLOCKED / HOLD</span></td>
-          <td>M2; <a href="#phase-5">Phase 5</a></td>
+          <td><span class="status status--blocked">BLOCKED / HOLD</span> —
+          <a href="#gate-a">Gate A</a> (extended Phase 4 qualification) needs
+          a live human bench session; machine-verifiable state reconfirmed
+          2026-07-20, nothing beyond that obtained</td>
+          <td>M2; <a href="#gate-a">Gate A</a>, <a href="#phase-5">Phase 5</a></td>
           <td><a href="#test-coexist">Display/audio coexistence matrix</a>
           passes</td>
           <td>Disable UI task; audio-only build still tagged in git</td>
@@ -1181,6 +1184,88 @@
     (amp/cable first, then monitor evidence, then ground, then pins, then
     module straps). Do not rewire at random; every change is one variable at
     a time.</p></div>
+
+    <h4 id="gate-a">M3 Gate A — extended Phase 4 qualification (bb-cal)</h4>
+    <p><span class="status status--conditional">MACHINE EVIDENCE ONLY —
+    2026-07-20</span> — this session re-verified the bench is in the exact
+    state the M2 core pass left it, but obtained <strong>none</strong> of the
+    remaining rows because every one of them needs either a live Bluetooth
+    connection or a human sense (hearing, touch) that this session does not
+    have. Recorded honestly rather than guessed, per this gate's explicit
+    instruction not to claim unobtained observations.</p>
+    <p><strong>Re-verified this session (read-only, no flash write):</strong></p>
+    <ul>
+      <li>Backup integrity: <code>shasum -a 256</code> on
+      <code>boombox-flash-backup-20260717-144304-16MB.bin</code> still equals
+      the recorded
+      <code>421c15e933a66b08854675fbaa82762d52c0079de40be804d78a618a8c7a310a</code>.</li>
+      <li>Board identity: <code>esptool.py flash_id</code> — ESP32-D0WDQ6-V3
+      rev v3.1, Winbond 16&nbsp;MB flash, MAC <code>a4:f0:0f:d9:71:b8</code> —
+      matches the confirmed board record.</li>
+      <li>Flashed firmware: a passive serial reset (RTS-only EN pulse, GPIO0
+      left released — no download-mode entry) captured the boot log. Project
+      <code>a2dp_sink_stream</code>, compile time
+      <code>Jul 18 2026 15:15:05</code>, ELF SHA-256 prefix
+      <code>2542e999e&hellip;</code> — this is the same audited M2
+      Philips-I2S build from the <a href="#m2">M2</a> row, not a stale or
+      drifted image. <code>A2DP PROF STATE: Init Complete</code> observed;
+      no DAC/GPIO reconfiguration occurred. Log:
+      <code>m3/logs/gate-a-boot-20260720T045648Z.log</code> (under
+      <code>~/Library/Application&nbsp;Support/Boombox/</code>, not
+      committed).</li>
+    </ul>
+    <p><strong>Blocked — needs a live human bench session:</strong></p>
+    <ul>
+      <li><code>tools/bthelper</code> (bb-fdz.6) has
+      <code>connect</code>/<code>disconnect</code>/<code>pair</code>/<code>set-output</code>
+      permanently stubbed — the source is compiled/type-checked but the
+      binary always prints the state-mutating-boundary message and performs
+      no action, by design, regardless of flags or environment (see its
+      README Finding 1: <code>IOBluetoothDevice</code> APIs hang
+      indefinitely from a bare unsigned CLI with no TCC identity). There is
+      no automated way to bring the Mac↔RX-5235 A2DP link up from this
+      session; it requires a human clicking Connect in the macOS Bluetooth
+      menu, same as the M1 from-scratch re-pair's one required SSP tap.</li>
+      <li>Stereo orientation, hum/tick/dropout, transient/level audibility,
+      and power-transition pop are inherently things only a human ear can
+      judge with this bench setup (no calibrated mic is positioned at the
+      speaker; a Yeti USB mic is present on the Mac but its physical
+      placement relative to the bench speaker is unconfirmed, so it was not
+      used to fabricate a machine substitute for listening).</li>
+      <li>The long-run/thermal soak's crash/underrun/heap-watermark portion
+      is machine-loggable once a stream is playing, but the &ldquo;nothing
+      painful to touch&rdquo; thermal check itself needs a human touch.</li>
+    </ul>
+    <p><strong>Gate A bench protocol (ready to run in one live session,
+    ~15&nbsp;minutes of human time):</strong></p>
+    <ol>
+      <li>Human clicks <strong>Connect</strong> on &ldquo;RX-5235 Digital
+      Tape&rdquo; in the Mac's Bluetooth menu (already paired from M1/M2 — no
+      re-pair, no SSP prompt expected). Agent captures the serial
+      <code>A2DP connection state: Connected</code> line.</li>
+      <li><strong>Multi-app playback:</strong> agent runs <code>afplay</code>
+      on a short clip, then plays a second clip from a different app (Music
+      or QuickTime Player) routed to the RX-5235 output; agent captures
+      <code>Started</code>/packet-count/<code>Suspended</code> for each.</li>
+      <li><strong>Stereo + noise + transient (human-observed, ~2&nbsp;min):</strong>
+      agent plays a left-only then right-only test tone and a short quiet
+      chime alongside normal-level program material; human reports channel
+      orientation, any hum/tick/dropout, and whether the quiet chime was
+      audible (the open item from the M2 short-chime caveat above).</li>
+      <li><strong>Power-transition pop (human-observed):</strong> agent
+      triggers a couple of connect/disconnect and stream start/stop cycles;
+      human reports whether a pop is audible.</li>
+      <li><strong>Bounded soak:</strong> agent starts continuous playback for
+      a bounded, explicitly-recorded duration (the plan's §11.6 default is
+      &ge;45&nbsp;min; a shorter bound may be substituted if scoped down, with
+      the exact bound recorded rather than silently assumed) and logs serial
+      evidence for crashes, I2S/underrun messages, and free-heap watermark
+      over the run; human does a brief touch-check on the DAC/ESP32 at the
+      end for warmth.</li>
+    </ol>
+    <p>Until this protocol runs, Phase 4's extended rows and
+    <a href="#phase-5">Phase 5</a>'s prerequisite remain open — display work
+    is correctly still not authorized.</p>
   </section>
 
   <section class="phase">
