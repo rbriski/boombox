@@ -42,10 +42,8 @@ void app_main(void)
     ESP_LOGI(TAG, "app: %s version %s (board-neutral, console UART only)", app->project_name, app->version);
     ESP_LOGI(TAG, "ESP-IDF: %s", esp_get_idf_version());
     ESP_LOGI(TAG, "Chip: %s, %d core(s), revision v%u.%u", CONFIG_IDF_TARGET, chip_info.cores, major_rev, minor_rev);
-    ESP_LOGI(TAG, "Features:%s%s%s%s",
-             (chip_info.features & CHIP_FEATURE_WIFI_BGN) ? " WiFi" : "",
-             (chip_info.features & CHIP_FEATURE_BT) ? " BT" : "",
-             (chip_info.features & CHIP_FEATURE_BLE) ? " BLE" : "",
+    ESP_LOGI(TAG, "Features:%s%s%s%s", (chip_info.features & CHIP_FEATURE_WIFI_BGN) ? " WiFi" : "",
+             (chip_info.features & CHIP_FEATURE_BT) ? " BT" : "", (chip_info.features & CHIP_FEATURE_BLE) ? " BLE" : "",
              (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? " embedded-flash" : " external-flash");
 
     /* Flash size is unknown for this board until first probed on hardware
@@ -71,15 +69,22 @@ void app_main(void)
     esp_err_t audio_err = boombox_audio_init();
     if (audio_err != ESP_OK) {
         ESP_LOGE(TAG, "audio bring-up failed: %s", esp_err_to_name(audio_err));
+        boombox_ui_set_error("AUDIO ERROR");
+    }
+
+    esp_err_t status_err = boombox_ui_start_status_updates();
+    if (status_err != ESP_OK) {
+        ESP_LOGE(TAG, "status UI start failed: %s", esp_err_to_name(status_err));
     }
 
     for (;;) {
         int64_t uptime_s = esp_timer_get_time() / 1000000;
-        ESP_LOGI(TAG, "heartbeat: uptime %" PRId64 " s, free heap %" PRIu32 " bytes, "
-                      "audio conn %d stream %d packets %" PRIu32,
-                 uptime_s, esp_get_free_heap_size(),
+        ESP_LOGI(TAG,
+                 "heartbeat: uptime %" PRId64 " s, free heap %" PRIu32 " bytes, min heap %" PRIu32
+                 " bytes, audio conn %d stream %d packets %" PRIu32 " underruns %" PRIu32 " ui refreshes %" PRIu32,
+                 uptime_s, esp_get_free_heap_size(), esp_get_minimum_free_heap_size(),
                  boombox_audio_get_connection_state(), boombox_audio_get_stream_state(),
-                 boombox_audio_get_packet_count());
+                 boombox_audio_get_packet_count(), boombox_audio_get_underrun_count(), boombox_ui_get_refresh_count());
         vTaskDelay(pdMS_TO_TICKS(HEARTBEAT_PERIOD_MS));
     }
 }

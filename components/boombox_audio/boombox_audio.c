@@ -48,7 +48,7 @@ static const char *TAG = "boombox_audio";
  ******************************/
 
 static _Atomic boombox_audio_conn_state_t s_conn_state = BOOMBOX_AUDIO_DISCONNECTED;
-static _Atomic boombox_audio_stream_state_t s_stream_state = BOOMBOX_AUDIO_STREAM_SUSPENDED;
+static _Atomic boombox_audio_stream_state_t s_stream_state = BOOMBOX_AUDIO_STREAM_IDLE;
 static _Atomic uint32_t s_packet_count = 0;
 
 boombox_audio_conn_state_t boombox_audio_get_connection_state(void)
@@ -64,6 +64,19 @@ boombox_audio_stream_state_t boombox_audio_get_stream_state(void)
 uint32_t boombox_audio_get_packet_count(void)
 {
     return atomic_load(&s_packet_count);
+}
+
+uint32_t boombox_audio_get_underrun_count(void)
+{
+    return boombox_audio_i2s_get_underrun_count();
+}
+
+static void increment_packet_count(void)
+{
+    uint32_t count = atomic_load(&s_packet_count);
+
+    while (count != UINT32_MAX && !atomic_compare_exchange_weak(&s_packet_count, &count, count + 1)) {
+    }
 }
 
 /*******************************
@@ -188,6 +201,7 @@ static void bt_a2d_evt_hdl(uint16_t event, void *param)
             break;
         case ESP_A2D_CONNECTION_STATE_CONNECTED:
             atomic_store(&s_conn_state, BOOMBOX_AUDIO_CONNECTED);
+            atomic_store(&s_stream_state, BOOMBOX_AUDIO_STREAM_IDLE);
             esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
             boombox_audio_i2s_start();
             break;
@@ -197,6 +211,7 @@ static void bt_a2d_evt_hdl(uint16_t event, void *param)
         case ESP_A2D_CONNECTION_STATE_DISCONNECTED:
         default:
             atomic_store(&s_conn_state, BOOMBOX_AUDIO_DISCONNECTED);
+            atomic_store(&s_stream_state, BOOMBOX_AUDIO_STREAM_IDLE);
             esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
             boombox_audio_i2s_stop();
             boombox_audio_i2s_close();
@@ -219,7 +234,8 @@ static void bt_a2d_evt_hdl(uint16_t event, void *param)
         boombox_audio_i2s_reconfigure(&a2d->audio_cfg.mcc);
         break;
     case ESP_A2D_PROF_STATE_EVT:
-        ESP_LOGI(TAG, "A2DP profile %s", a2d->a2d_prof_stat.init_state == ESP_A2D_INIT_SUCCESS ? "init complete" : "deinit complete");
+        ESP_LOGI(TAG, "A2DP profile %s",
+                 a2d->a2d_prof_stat.init_state == ESP_A2D_INIT_SUCCESS ? "init complete" : "deinit complete");
         break;
     case ESP_A2D_SNK_GET_DELAY_VALUE_EVT:
         /* Application-layer delay (I2S ring buffer + task latency) added
@@ -239,7 +255,7 @@ static void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param)
 static void bt_app_a2d_data_cb(const uint8_t *data, uint32_t len)
 {
     boombox_audio_i2s_write(data, len);
-    atomic_fetch_add(&s_packet_count, 1);
+    increment_packet_count();
 }
 
 static void bt_av_hdl_stack_evt(uint16_t event, void *param)

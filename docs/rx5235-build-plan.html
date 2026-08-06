@@ -1510,6 +1510,44 @@
     coexistence) is the step that closes that gap.</p>
   </section>
 
+  <section>
+    <h4 id="gate-c">M3 Gate C — integrated display / A2DP software
+    integration (bb-475)</h4>
+    <p><span class="status status--conditional">CODE + BUILD EVIDENCE ONLY —
+    2026-08-06</span> — Gate C combines the already verified display pin map
+    and M2-derived A2DP/I2S component without changing either wiring contract.
+    It is deliberately <strong>not</strong> a hardware pass: this change was
+    built only, with no flash, erase, rewire, or claim of physical coexistence
+    evidence. The first later hardware write must be an ordinary full flash
+    because the partition table changed in bb-qks; it is never an app-only
+    write or a bulk erase.</p>
+    <ul>
+      <li><code>boombox_ui</code> owns a low-priority (priority 2), APP_CPU
+      pinned status task. It samples only the bounded audio state surface at
+      10 Hz and presents a full framebuffer only when the mapped state changes;
+      it does not run a redraw loop or animation. The I2S drain task remains
+      higher priority with its existing ring-buffer pipeline.</li>
+      <li>Available state screens are boot, waiting/discoverable, pairing,
+      connected, playing, paused, disconnecting/disconnected, and error.
+      AVRCP metadata is not yet available, so metadata decoration is explicitly
+      unavailable rather than simulated.</li>
+      <li>UART heartbeat evidence now records free and minimum heap, A2DP
+      connection/stream state, packet count, I2S ring-buffer underflow count,
+      and UI refresh count. The counters make the physical coexistence record
+      auditable; a matrix pass requires no audible dropout, no correlated PWM
+      artifact, and zero observed underruns.</li>
+    </ul>
+    <p><strong>Required bench record before declaring Gate C PASS:</strong>
+    play known-good audio through the PCM5102A and run all four rows of
+    <a href="#test-coexist">matrix 11.8</a>: state-change redraw churn,
+    animation cost (currently unavailable and therefore labelled), a 0–100%
+    backlight sweep, and long-title metadata bursts (currently unavailable and
+    therefore labelled). Capture the serial heartbeat around each row and stop
+    on any audible glitch or non-zero new underrun. If redraws correlate with
+    glitches, lower refresh/redraw scope or revisit scheduling/DMA depth; do
+    not change verified wiring.</p>
+  </section>
+
   <section class="phase">
     <h3 id="phase-6">Phase 6 — AVRCP metadata and bench controls</h3>
     <p><span class="status status--blocked">BLOCKED / HOLD</span> — awaits
