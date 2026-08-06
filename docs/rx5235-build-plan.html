@@ -1217,7 +1217,8 @@
       <code>~/Library/Application&nbsp;Support/Boombox/</code>, not
       committed).</li>
     </ul>
-    <p><strong>Blocked — needs a live human bench session:</strong></p>
+    <p><strong>Blocked in the 2026-07-20 session — needed a live human bench
+    session:</strong></p>
     <ul>
       <li><code>tools/bthelper</code> (bb-fdz.6) has
       <code>connect</code>/<code>disconnect</code>/<code>pair</code>/<code>set-output</code>
@@ -1266,9 +1267,37 @@
       over the run; human does a brief touch-check on the DAC/ESP32 at the
       end for warmth.</li>
     </ol>
-    <p>Until this protocol runs, Phase 4's extended rows and
-    <a href="#phase-5">Phase 5</a>'s prerequisite remain open — display work
-    is correctly still not authorized.</p>
+    <p><span class="status status--conditional">BOUNDED BENCH PASS; FULL GATE
+    BLOCKED — 2026-08-06</span> — the live DGX bench session completed every
+    row the available mono speaker and loose breadboard could truthfully
+    support. No flash, erase, or GPIO change occurred.</p>
+    <ul>
+      <li>The exact CH9102 device enumerated at
+      <code>/dev/boombox-esp32</code>. The existing M2 image booted cleanly,
+      initialized A2DP, connected at 48&nbsp;kHz, and resumed playback after a
+      deliberate Bluetooth disconnect/reconnect cycle.</li>
+      <li><code>pw-play</code> and <code>paplay</code> both produced audible
+      output. Normal and quiet chimes were audible; the human observer reported
+      no ticks, crackling, dropouts, or loud transition pops.</li>
+      <li>A 600-second audible 220/330&nbsp;Hz soak at 25% sink volume completed
+      with <code>pw-play</code> exit&nbsp;0. Serial showed one uninterrupted
+      <code>Started</code> interval, monotonically increasing packet counts to
+      32,400, and an orderly <code>Suspended</code> transition. There was no
+      reset, disconnect, crash, or in-stream ringbuffer error. This firmware
+      does not expose periodic heap-watermark or explicit underrun counters.</li>
+      <li>The human observer heard the tone for the full run without dropout or
+      new crackling and found neither the ESP32 nor DAC hot afterward.</li>
+      <li>A steady buzz was audible on the loose breadboard. This is recorded as
+      a provisional bench limitation, not a final installed noise grade.</li>
+    </ul>
+    <p><strong>Exact residual blockers:</strong> the available Bluetooth speaker
+    is mono, so left/right orientation and separation could not be observed;
+    the plan's default &ge;45-minute thermal soak was explicitly scoped to ten
+    minutes for this live session; and final noise grading must be repeated
+    after the breadboard connections are secured. Gate A therefore remains open
+    and still blocks integrated display/audio work. A stereo amp or pair of
+    speakers, secured wiring, and the remaining 45-minute soak are required to
+    convert this bounded pass into a full Gate A pass.</p>
   </section>
 
   <section class="phase">
