@@ -539,9 +539,10 @@ idf.py -p &lt;port&gt; flash monitor
       <li><strong>Discovery.</strong> On the phone, open Bluetooth settings and
       scan. The device name (<code>RX-5235 Digital Tape</code> or
       <code>ESP_SPEAKER</code>) should appear within ~10&nbsp;s.</li>
-      <li><strong>Pair &amp; connect.</strong> Tap to pair. Pairing uses Secure
-      Simple Pairing by default (typically no PIN prompt on a modern phone; a
-      legacy fixed PIN <code>1234</code> is the fallback). The monitor should log
+      <li><strong>Pair &amp; connect.</strong> Tap to pair. Current firmware uses
+      Secure Simple Pairing with the device's <code>NoInputNoOutput</code>
+      capability, so a modern source uses Just Works rather than a PIN prompt;
+      the legacy fixed PIN <code>1234</code> is only a fallback. The monitor should log
       <code>A2DP connection state: Connecting</code> then
       <code>Connected, [phone-MAC]</code>.</li>
       <li><strong>Stream start.</strong> Play audio from a music app. Watch for

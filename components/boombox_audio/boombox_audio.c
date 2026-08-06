@@ -10,9 +10,10 @@
  *   - AVRCP, the external-codec variant, and the internal-DAC/idle output
  *     variants are not ported (out of scope for this prerequisite; M2 only
  *     exercised A2DP + external I2S).
- *   - GAP/device event logging is trimmed to what's useful without a UI
- *     (no Secure Simple Pairing prompt path — SSP is left at the example's
- *     default-disabled setting matching M2's fixed-pin-code pairing).
+ *   - GAP/device event logging is trimmed to what's useful without a UI.
+ *     Secure Simple Pairing (SSP) uses NoInputNoOutput / Just Works because
+ *     the product has no trusted pairing input; the legacy fixed PIN remains
+ *     configured for sources that do not support SSP.
  *   - Connection/stream state and packet count are tracked in bounded
  *     atomics and exposed via boombox_audio_get_* for Gate C to poll.
  * The I2S sink (boombox_audio_i2s.c) carries the one behavioral delta from
@@ -157,8 +158,8 @@ static void bt_app_task_handler(void *arg)
 
 /*******************************
  * GAP / DEVICE CALLBACKS
- * Trimmed from bredr_app_common_utils: logging only, no SSP prompt path
- * (matches M2's fixed-pin-code pairing / SSP disabled).
+ * The NoInputNoOutput SSP capability selects Just Works, so it does not need
+ * a numeric-comparison confirmation handler.
  ******************************/
 
 static void bt_app_dev_cb(esp_bt_dev_cb_event_t event, esp_bt_dev_cb_param_t *param)
@@ -330,13 +331,25 @@ esp_err_t boombox_audio_init(void)
     ESP_RETURN_ON_ERROR(esp_bt_controller_init(&bt_cfg), TAG, "controller_init");
     ESP_RETURN_ON_ERROR(esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT), TAG, "controller_enable");
 
+    /* Keep the ESP-IDF default SSP enabled. Disabling it makes modern sources
+     * fall back to legacy PIN pairing and can cause them to reject a security
+     * downgrade after ACL connection. */
     esp_bluedroid_config_t bluedroid_cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
-    bluedroid_cfg.ssp_en = false; /* fixed-pin-code pairing, matching M2 */
     ESP_RETURN_ON_ERROR(esp_bluedroid_init_with_cfg(&bluedroid_cfg), TAG, "bluedroid_init");
     ESP_RETURN_ON_ERROR(esp_bluedroid_enable(), TAG, "bluedroid_enable");
 
+    /* This device has no trusted keyboard or display confirmation path. The
+     * pinned ESP-IDF's NoInputNoOutput capability selects SSP Just Works for
+     * modern sources without pretending that a numeric comparison is shown. */
+    esp_bt_sp_param_t ssp_param = ESP_BT_SP_IOCAP_MODE;
+    esp_bt_io_cap_t io_capability = ESP_BT_IO_CAP_NONE;
+    ESP_RETURN_ON_ERROR(esp_bt_gap_set_security_param(ssp_param, &io_capability, sizeof(io_capability)), TAG,
+                        "set_ssp_io_capability");
+
+    /* Retain the ESP-IDF example's fixed PIN only as the legacy-pairing
+     * fallback; SSP-capable sources do not use this value. */
     esp_bt_pin_code_t pin_code = {'1', '2', '3', '4'};
-    esp_bt_gap_set_pin(ESP_BT_PIN_TYPE_FIXED, 4, pin_code);
+    ESP_RETURN_ON_ERROR(esp_bt_gap_set_pin(ESP_BT_PIN_TYPE_FIXED, 4, pin_code), TAG, "set_legacy_pin");
 
     s_bt_app_task_queue = xQueueCreate(10, sizeof(bt_app_msg_t));
     if (s_bt_app_task_queue == NULL) {

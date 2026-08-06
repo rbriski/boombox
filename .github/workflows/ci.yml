@@ -11,6 +11,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check Bluetooth pairing security contract
+        run: scripts/check_bt_pairing_security.sh
+
       # Builds in the official espressif/idf container. esp_idf_version must
       # stay in sync with .espidf-version at the repo root.
       - name: Build (ESP-IDF, target esp32)

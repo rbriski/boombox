@@ -1483,8 +1483,10 @@
     prerequisite — M2 only exercised A2DP + external I2S): AVRCP, the
     external-codec (undecoded-audio) variant, and the internal-DAC/idle
     output variants from the pinned example's Kconfig choice. Secure Simple
-    Pairing is left disabled (fixed pin code &ldquo;1234&rdquo;), matching
-    how M2 paired.</p>
+    Pairing is enabled for modern A2DP sources using the ESP-IDF
+    <code>NoInputNoOutput</code> capability (Just Works); the fixed PIN
+    <code>1234</code> remains only as the legacy-pairing fallback. This avoids
+    presenting legacy-only security to a modern host after ACL connection.</p>
     <p><strong>Also landed this session:</strong></p>
     <ul>
       <li><code>sdkconfig.defaults</code> — added
