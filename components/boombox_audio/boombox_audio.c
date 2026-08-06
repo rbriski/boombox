@@ -24,6 +24,7 @@
 #include "boombox_audio.h"
 #include "boombox_audio_i2s.h"
 
+#include <inttypes.h>
 #include <stdatomic.h>
 #include <string.h>
 
@@ -48,8 +49,10 @@ static const char *TAG = "boombox_audio";
  ******************************/
 
 static _Atomic boombox_audio_conn_state_t s_conn_state = BOOMBOX_AUDIO_DISCONNECTED;
-static _Atomic boombox_audio_stream_state_t s_stream_state = BOOMBOX_AUDIO_STREAM_SUSPENDED;
+static _Atomic boombox_audio_stream_state_t s_stream_state = BOOMBOX_AUDIO_STREAM_IDLE;
 static _Atomic uint32_t s_packet_count = 0;
+static _Atomic uint32_t s_rejected_packet_count = 0;
+static _Atomic uint32_t s_rejected_byte_count = 0;
 
 boombox_audio_conn_state_t boombox_audio_get_connection_state(void)
 {
@@ -64,6 +67,33 @@ boombox_audio_stream_state_t boombox_audio_get_stream_state(void)
 uint32_t boombox_audio_get_packet_count(void)
 {
     return atomic_load(&s_packet_count);
+}
+
+uint32_t boombox_audio_get_rejected_packet_count(void)
+{
+    return atomic_load(&s_rejected_packet_count);
+}
+
+uint32_t boombox_audio_get_rejected_byte_count(void)
+{
+    return atomic_load(&s_rejected_byte_count);
+}
+
+uint32_t boombox_audio_get_underrun_count(void)
+{
+    return boombox_audio_i2s_get_underrun_count();
+}
+
+static void increment_saturating(_Atomic uint32_t *counter, uint32_t amount)
+{
+    uint32_t count = atomic_load(counter);
+
+    while (count != UINT32_MAX) {
+        uint32_t next = UINT32_MAX - count < amount ? UINT32_MAX : count + amount;
+        if (atomic_compare_exchange_weak(counter, &count, next)) {
+            break;
+        }
+    }
 }
 
 /*******************************
@@ -188,6 +218,7 @@ static void bt_a2d_evt_hdl(uint16_t event, void *param)
             break;
         case ESP_A2D_CONNECTION_STATE_CONNECTED:
             atomic_store(&s_conn_state, BOOMBOX_AUDIO_CONNECTED);
+            atomic_store(&s_stream_state, BOOMBOX_AUDIO_STREAM_IDLE);
             esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
             boombox_audio_i2s_start();
             break;
@@ -197,6 +228,7 @@ static void bt_a2d_evt_hdl(uint16_t event, void *param)
         case ESP_A2D_CONNECTION_STATE_DISCONNECTED:
         default:
             atomic_store(&s_conn_state, BOOMBOX_AUDIO_DISCONNECTED);
+            atomic_store(&s_stream_state, BOOMBOX_AUDIO_STREAM_IDLE);
             esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
             boombox_audio_i2s_stop();
             boombox_audio_i2s_close();
@@ -206,11 +238,13 @@ static void bt_a2d_evt_hdl(uint16_t event, void *param)
     }
     case ESP_A2D_AUDIO_STATE_EVT: {
         ESP_LOGI(TAG, "A2DP audio state: %s", a2d_audio_state_str[a2d->audio_stat.state]);
-        atomic_store(&s_stream_state, a2d->audio_stat.state == ESP_A2D_AUDIO_STATE_STARTED
-                                          ? BOOMBOX_AUDIO_STREAM_STARTED
-                                          : BOOMBOX_AUDIO_STREAM_SUSPENDED);
+        bool streaming = a2d->audio_stat.state == ESP_A2D_AUDIO_STATE_STARTED;
+        atomic_store(&s_stream_state, streaming ? BOOMBOX_AUDIO_STREAM_STARTED : BOOMBOX_AUDIO_STREAM_SUSPENDED);
+        boombox_audio_i2s_set_streaming(streaming);
         if (a2d->audio_stat.state == ESP_A2D_AUDIO_STATE_STARTED) {
             atomic_store(&s_packet_count, 0);
+            atomic_store(&s_rejected_packet_count, 0);
+            atomic_store(&s_rejected_byte_count, 0);
         }
         break;
     }
@@ -219,7 +253,8 @@ static void bt_a2d_evt_hdl(uint16_t event, void *param)
         boombox_audio_i2s_reconfigure(&a2d->audio_cfg.mcc);
         break;
     case ESP_A2D_PROF_STATE_EVT:
-        ESP_LOGI(TAG, "A2DP profile %s", a2d->a2d_prof_stat.init_state == ESP_A2D_INIT_SUCCESS ? "init complete" : "deinit complete");
+        ESP_LOGI(TAG, "A2DP profile %s",
+                 a2d->a2d_prof_stat.init_state == ESP_A2D_INIT_SUCCESS ? "init complete" : "deinit complete");
         break;
     case ESP_A2D_SNK_GET_DELAY_VALUE_EVT:
         /* Application-layer delay (I2S ring buffer + task latency) added
@@ -238,8 +273,19 @@ static void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param)
 
 static void bt_app_a2d_data_cb(const uint8_t *data, uint32_t len)
 {
-    boombox_audio_i2s_write(data, len);
-    atomic_fetch_add(&s_packet_count, 1);
+    if (len == 0) {
+        return;
+    }
+
+    size_t accepted = boombox_audio_i2s_write(data, len);
+    if (accepted == len) {
+        increment_saturating(&s_packet_count, 1);
+        return;
+    }
+
+    increment_saturating(&s_rejected_packet_count, 1);
+    increment_saturating(&s_rejected_byte_count, len - accepted);
+    ESP_LOGW(TAG, "PCM packet short write: accepted %u/%" PRIu32 " bytes", (unsigned)accepted, len);
 }
 
 static void bt_av_hdl_stack_evt(uint16_t event, void *param)

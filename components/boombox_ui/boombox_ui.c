@@ -2,9 +2,12 @@
 #include "boombox_ui_font.h"
 
 #include <inttypes.h>
+#include <stdatomic.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "boombox_audio.h"
 #include "boombox_board.h"
 
 #include "driver/gpio.h"
@@ -17,6 +20,9 @@
 #include "esp_lcd_panel_vendor.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
 
 static const char *TAG = "boombox_ui";
 
@@ -35,11 +41,42 @@ static const char *TAG = "boombox_ui";
 #define BOOMBOX_UI_BL_LEDC_CH LEDC_CHANNEL_0
 #define BOOMBOX_UI_BL_LEDC_TMR LEDC_TIMER_0
 #define BOOMBOX_UI_BL_DUTY_BITS LEDC_TIMER_10_BIT
+#define BOOMBOX_UI_STATUS_PERIOD_MS 100
+#define BOOMBOX_UI_TASK_PRIORITY 2
+#define BOOMBOX_UI_TASK_STACK_SIZE 3072
+
+typedef enum {
+    BOOMBOX_UI_SCREEN_BOOT = 0,
+    BOOMBOX_UI_SCREEN_WAITING,
+    BOOMBOX_UI_SCREEN_PAIRING,
+    BOOMBOX_UI_SCREEN_CONNECTED,
+    BOOMBOX_UI_SCREEN_PLAYING,
+    BOOMBOX_UI_SCREEN_PAUSED,
+    BOOMBOX_UI_SCREEN_DISCONNECTED,
+    BOOMBOX_UI_SCREEN_ERROR,
+} boombox_ui_screen_t;
 
 static esp_lcd_panel_handle_t s_panel = NULL;
 static esp_lcd_panel_io_handle_t s_io = NULL;
 static bool s_backlight_ready = false;
 static uint16_t *s_framebuffer = NULL;
+static SemaphoreHandle_t s_framebuffer_ready = NULL;
+static TaskHandle_t s_status_task = NULL;
+static _Atomic uint32_t s_refresh_count = 0;
+static _Atomic bool s_error_requested = false;
+static char s_error_message[24] = "ERROR";
+
+static bool boombox_ui_on_color_trans_done(esp_lcd_panel_io_handle_t panel_io,
+                                           esp_lcd_panel_io_event_data_t *event_data, void *user_ctx)
+{
+    (void)panel_io;
+    (void)event_data;
+    (void)user_ctx;
+
+    BaseType_t higher_priority_task_woken = pdFALSE;
+    xSemaphoreGiveFromISR(s_framebuffer_ready, &higher_priority_task_woken);
+    return higher_priority_task_woken == pdTRUE;
+}
 
 static const boombox_ui_glyph_t *find_glyph(char ch)
 {
@@ -115,6 +152,7 @@ esp_err_t boombox_ui_init(void)
         .spi_mode = 0,
         .pclk_hz = BOOMBOX_UI_SPI_PCLK_HZ,
         .trans_queue_depth = 10,
+        .on_color_trans_done = boombox_ui_on_color_trans_done,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
     };
@@ -137,6 +175,8 @@ esp_err_t boombox_ui_init(void)
     ESP_RETURN_ON_ERROR(esp_lcd_panel_invert_color(s_panel, true), TAG, "invert_color");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(s_panel, true), TAG, "disp_on");
 
+    s_framebuffer_ready = xSemaphoreCreateBinary();
+    ESP_RETURN_ON_FALSE(s_framebuffer_ready != NULL, ESP_ERR_NO_MEM, TAG, "framebuffer completion semaphore");
     s_framebuffer = heap_caps_calloc(BOOMBOX_UI_WIDTH * BOOMBOX_UI_HEIGHT, sizeof(uint16_t), MALLOC_CAP_DMA);
     ESP_RETURN_ON_FALSE(s_framebuffer != NULL, ESP_ERR_NO_MEM, TAG, "framebuffer alloc");
 
@@ -207,11 +247,16 @@ esp_err_t boombox_ui_draw_text(int x, int y, int scale, uint16_t rgb565_color, c
 
 esp_err_t boombox_ui_present(void)
 {
-    if (s_panel == NULL || s_framebuffer == NULL) {
+    if (s_panel == NULL || s_framebuffer == NULL || s_framebuffer_ready == NULL) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    return esp_lcd_panel_draw_bitmap(s_panel, 0, 0, BOOMBOX_UI_WIDTH, BOOMBOX_UI_HEIGHT, s_framebuffer);
+    esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel, 0, 0, BOOMBOX_UI_WIDTH, BOOMBOX_UI_HEIGHT, s_framebuffer);
+    if (err == ESP_OK) {
+        xSemaphoreTake(s_framebuffer_ready, portMAX_DELAY);
+        atomic_fetch_add(&s_refresh_count, 1);
+    }
+    return err;
 }
 
 esp_err_t boombox_ui_show_boot_screen(void)
@@ -238,4 +283,108 @@ esp_err_t boombox_ui_show_boot_screen(void)
     ESP_RETURN_ON_ERROR(boombox_ui_set_backlight(60), TAG, "backlight on");
     ESP_LOGI(TAG, "boot screen drawn: \"%s\" / \"%s\"", line1, line2);
     return ESP_OK;
+}
+
+static const char *screen_name(boombox_ui_screen_t screen)
+{
+    static const char *const names[] = {
+        "BOOT", "WAITING", "PAIRING", "CONNECTED", "PLAYING", "PAUSED", "DISCONNECTED", "ERROR",
+    };
+
+    return names[screen];
+}
+
+static boombox_ui_screen_t get_status_screen(void)
+{
+    if (atomic_load(&s_error_requested)) {
+        return BOOMBOX_UI_SCREEN_ERROR;
+    }
+
+    boombox_audio_conn_state_t connection = boombox_audio_get_connection_state();
+    boombox_audio_stream_state_t stream = boombox_audio_get_stream_state();
+
+    if (connection == BOOMBOX_AUDIO_CONNECTING) {
+        return BOOMBOX_UI_SCREEN_PAIRING;
+    }
+    if (connection == BOOMBOX_AUDIO_CONNECTED) {
+        if (stream == BOOMBOX_AUDIO_STREAM_STARTED) {
+            return BOOMBOX_UI_SCREEN_PLAYING;
+        }
+        return stream == BOOMBOX_AUDIO_STREAM_SUSPENDED ? BOOMBOX_UI_SCREEN_PAUSED : BOOMBOX_UI_SCREEN_CONNECTED;
+    }
+    if (connection == BOOMBOX_AUDIO_DISCONNECTING) {
+        return BOOMBOX_UI_SCREEN_DISCONNECTED;
+    }
+    return BOOMBOX_UI_SCREEN_WAITING;
+}
+
+static esp_err_t render_status_screen(boombox_ui_screen_t screen)
+{
+    const char *detail = screen == BOOMBOX_UI_SCREEN_ERROR ? s_error_message : screen_name(screen);
+    const int title_scale = 3;
+    const int detail_scale = 2;
+    const int title_width = ((int)strlen("RX-5235") * 6 - 1) * title_scale;
+    const int detail_width = ((int)strlen(detail) * 6 - 1) * detail_scale;
+    const int title_x = (BOOMBOX_UI_WIDTH - title_width) / 2;
+    const int detail_x = (BOOMBOX_UI_WIDTH - detail_width) / 2;
+
+    ESP_RETURN_ON_ERROR(boombox_ui_clear(0x0000), TAG, "clear status screen");
+    ESP_RETURN_ON_ERROR(boombox_ui_draw_text(title_x < 0 ? 0 : title_x, 35, title_scale, 0xFFFF, "RX-5235"), TAG,
+                        "draw title");
+    ESP_RETURN_ON_ERROR(boombox_ui_draw_text(detail_x < 0 ? 0 : detail_x, 82, detail_scale,
+                                             screen == BOOMBOX_UI_SCREEN_ERROR ? 0xF800 : 0x07E0, detail),
+                        TAG, "draw status");
+    return boombox_ui_present();
+}
+
+static void boombox_ui_status_task(void *arg)
+{
+    (void)arg;
+    boombox_ui_screen_t previous = BOOMBOX_UI_SCREEN_BOOT;
+
+    for (;;) {
+        boombox_ui_screen_t current = get_status_screen();
+        if (current != previous) {
+            esp_err_t err = render_status_screen(current);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "status screen %s failed: %s", screen_name(current), esp_err_to_name(err));
+            } else {
+                ESP_LOGI(TAG, "status screen: %s, refreshes=%" PRIu32, screen_name(current),
+                         boombox_ui_get_refresh_count());
+            }
+            previous = current;
+        }
+        vTaskDelay(pdMS_TO_TICKS(BOOMBOX_UI_STATUS_PERIOD_MS));
+    }
+}
+
+esp_err_t boombox_ui_start_status_updates(void)
+{
+    if (s_panel == NULL || s_framebuffer == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (s_status_task != NULL) {
+        return ESP_OK;
+    }
+    if (xTaskCreatePinnedToCore(boombox_ui_status_task, "BoomboxUi", BOOMBOX_UI_TASK_STACK_SIZE, NULL,
+                                BOOMBOX_UI_TASK_PRIORITY, &s_status_task, 1) != pdPASS) {
+        s_status_task = NULL;
+        return ESP_ERR_NO_MEM;
+    }
+    return ESP_OK;
+}
+
+uint32_t boombox_ui_get_refresh_count(void)
+{
+    return atomic_load(&s_refresh_count);
+}
+
+void boombox_ui_set_error(const char *message)
+{
+    if (message == NULL || message[0] == '\0') {
+        atomic_store(&s_error_requested, false);
+        return;
+    }
+    snprintf(s_error_message, sizeof(s_error_message), "%s", message);
+    atomic_store(&s_error_requested, true);
 }

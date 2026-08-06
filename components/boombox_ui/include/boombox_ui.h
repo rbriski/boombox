@@ -1,10 +1,12 @@
 /*
  * boombox_ui — ST7789 display driver setup and screen-state rendering.
- * Display-only for now (Phase 5, docs/rx5235-build-plan.html): no
- * Bluetooth/audio coupling here. Keep redraws event-driven, not a
- * constant full-screen loop, once this grows past the boot screen.
+ * Phase 5 status rendering polls the bounded boombox_audio state surface;
+ * it never participates in Bluetooth or I2S callbacks. Keep redraws
+ * transition-driven, not a constant full-screen loop.
  */
 #pragma once
+
+#include <stdint.h>
 
 #include "esp_err.h"
 
@@ -39,6 +41,18 @@ esp_err_t boombox_ui_present(void);
 
 /* Phase 5 boot screen: "RX-5235" / "DIGITAL TAPE", centered. */
 esp_err_t boombox_ui_show_boot_screen(void);
+
+/* Start the low-priority, APP_CPU-pinned status task after audio is ready.
+ * It polls bounded boombox_audio state at 10 Hz but presents only when the
+ * screen state changes, capping display DMA work. */
+esp_err_t boombox_ui_start_status_updates(void);
+
+/* Number of complete framebuffer presents performed since boot. */
+uint32_t boombox_ui_get_refresh_count(void);
+
+/* Show the error screen on the next bounded status update. Passing NULL or
+ * an empty string clears the error condition. */
+void boombox_ui_set_error(const char *message);
 
 #ifdef __cplusplus
 }
