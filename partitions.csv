@@ -1,0 +1,12 @@
+# 16 MB production layout for the verified T-Display Q125.
+#
+# Keep NVS and PHY initialization at the ESP-IDF default offsets so a normal
+# app flash continues to preserve provisioned settings and RF calibration.
+# OTA is deliberately deferred: the current product has no OTA update flow,
+# and a single factory slot maximizes headroom while full-flash backups remain
+# the rollback path.
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x6000,
+phy_init,   data, phy,      0xf000,   0x1000,
+coredump,   data, coredump, 0x10000,  0x40000,
+factory,    app,  factory,  0x50000,  0xfb0000,

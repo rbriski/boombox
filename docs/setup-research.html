@@ -300,10 +300,20 @@ scripts/                 # bootstrap / doctor / build</code></pre>
   decision is now unblocked — but it remains a deliberate follow-up, not an
   accident of the scaffold:</p>
   <ul>
-    <li>The build currently uses the default single-factory-app partition
-    table (safe on any supported flash size).</li>
-    <li>With 16 MB confirmed, the natural next layout is two OTA app slots +
-    otadata + NVS + coredump, sized generously.</li>
+    <li>The default 1 MB factory-app table was replaced on 2026-08-06 after
+    Classic Bluetooth/A2DP reduced its free space to 3%. The committed
+    <code>partitions.csv</code> is deliberately specific to the verified 16 MB
+    target: it preserves the default NVS (24 KB at <code>0x9000</code>) and PHY
+    (4 KB at <code>0xf000</code>) locations, adds a 256 KB flash coredump
+    partition, and provides one 15.6875 MB factory application slot beginning
+    at <code>0x50000</code>.</li>
+    <li>OTA is intentionally not introduced here: no update workflow currently
+    exists to justify its operational complexity. Normal app flashing leaves
+    NVS and PHY intact, while the established full-flash backup remains the
+    rollback path. Revisit the table when OTA is designed as a product feature.</li>
+    <li>On the pinned ESP-IDF v6.0.2 toolchain, <code>scripts/build.sh size</code>
+    records a <code>0xfcb80</code>-byte image in the <code>0xfb0000</code>-byte
+    factory partition, leaving <code>0xeb3480</code> bytes (94%) free.</li>
     <li>NVS is the settings store either way; introduce a namespaced settings
     module rather than raw NVS calls at call sites.</li>
   </ul>

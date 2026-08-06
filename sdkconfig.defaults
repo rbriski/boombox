@@ -1,8 +1,6 @@
-# Boombox committed config seed. Only settings that are safe for ANY classic
-# ESP32 board belong here — the physical board model is unconfirmed
-# (docs/hardware.html). Board-specific options arrive after identification.
-# Never put credentials or secrets in this file (generated sdkconfig is
-# gitignored; this file is not).
+# Boombox committed config seed for the verified classic ESP32 target. Keep
+# physical pin assignments in boombox_board and never put credentials or
+# secrets here (generated sdkconfig is gitignored; this file is not).
 CONFIG_IDF_TARGET="esp32"
 
 # Classic BT + A2DP sink (boombox_audio), matching the pinned example's
@@ -14,3 +12,12 @@ CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=y
 CONFIG_BT_BLUEDROID_ENABLED=y
 CONFIG_BT_CLASSIC_ENABLED=y
 CONFIG_BT_A2DP_ENABLE=y
+
+# The verified target has 16 MB flash. Use the documented custom layout: it
+# retains the default NVS/PHY offsets, reserves persistent crash capture, and
+# gives the single factory application slot room to grow. OTA remains deferred
+# until the product has an update workflow to support it.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
