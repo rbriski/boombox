@@ -52,12 +52,18 @@ boombox_audio_conn_state_t boombox_audio_get_connection_state(void);
  * event; decoded-PCM stream transitions then report STARTED or SUSPENDED. */
 boombox_audio_stream_state_t boombox_audio_get_stream_state(void);
 
-/* Running count of decoded-PCM audio packets delivered to the I2S sink
- * since boot. A liveness counter for Gate C, not a precise accounting —
- * it saturates rather than reporting meaningfully past UINT32_MAX. */
+/* Running count of decoded-PCM packets accepted into the I2S ring buffer
+ * since boot. This is a liveness counter for Gate C; it saturates rather
+ * than reporting meaningfully past UINT32_MAX. */
 uint32_t boombox_audio_get_packet_count(void);
 
-/* Count of I2S ring-buffer underflows observed by the drain task since boot.
+/* Count of PCM packets and bytes rejected because the I2S ring buffer could
+ * not accept the complete packet. These saturating counters make a loss
+ * condition distinct from the accepted-packet liveness counter. */
+uint32_t boombox_audio_get_rejected_packet_count(void);
+uint32_t boombox_audio_get_rejected_byte_count(void);
+
+/* Count of I2S ring-buffer underflows while A2DP was actively streaming.
  * Gate C records this alongside UI refresh and heap telemetry; a passing
  * coexistence run has no new underflows. */
 uint32_t boombox_audio_get_underrun_count(void);

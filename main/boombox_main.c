@@ -81,10 +81,13 @@ void app_main(void)
         int64_t uptime_s = esp_timer_get_time() / 1000000;
         ESP_LOGI(TAG,
                  "heartbeat: uptime %" PRId64 " s, free heap %" PRIu32 " bytes, min heap %" PRIu32
-                 " bytes, audio conn %d stream %d packets %" PRIu32 " underruns %" PRIu32 " ui refreshes %" PRIu32,
+                 " bytes, audio conn %d stream %d queued packets %" PRIu32 " rejected packets %" PRIu32
+                 " rejected bytes %" PRIu32 " underruns %" PRIu32 " ui refreshes %" PRIu32,
                  uptime_s, esp_get_free_heap_size(), esp_get_minimum_free_heap_size(),
                  boombox_audio_get_connection_state(), boombox_audio_get_stream_state(),
-                 boombox_audio_get_packet_count(), boombox_audio_get_underrun_count(), boombox_ui_get_refresh_count());
+                 boombox_audio_get_packet_count(), boombox_audio_get_rejected_packet_count(),
+                 boombox_audio_get_rejected_byte_count(), boombox_audio_get_underrun_count(),
+                 boombox_ui_get_refresh_count());
         vTaskDelay(pdMS_TO_TICKS(HEARTBEAT_PERIOD_MS));
     }
 }

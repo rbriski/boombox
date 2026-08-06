@@ -56,6 +56,7 @@ typedef struct {
 
 static boombox_audio_i2s_cb_t s_cb;
 static _Atomic uint32_t s_underrun_count = 0;
+static _Atomic bool s_streaming = false;
 
 uint32_t boombox_audio_i2s_get_underrun_count(void)
 {
@@ -68,6 +69,11 @@ static void increment_underrun_count(void)
 
     while (count != UINT32_MAX && !atomic_compare_exchange_weak(&s_underrun_count, &count, count + 1)) {
     }
+}
+
+void boombox_audio_i2s_set_streaming(bool active)
+{
+    atomic_store(&s_streaming, active);
 }
 
 static void boombox_audio_i2s_task_handler(void *arg)
@@ -85,8 +91,12 @@ static void boombox_audio_i2s_task_handler(void *arg)
                 item_size = 0;
                 data = (uint8_t *)xRingbufferReceiveUpTo(s_cb.ringbuf, &item_size, pdMS_TO_TICKS(20), item_size_upto);
                 if (item_size == 0) {
-                    increment_underrun_count();
-                    ESP_LOGI(TAG, "ringbuffer underflowed, mode -> PREFETCHING");
+                    if (atomic_load(&s_streaming)) {
+                        increment_underrun_count();
+                        ESP_LOGW(TAG, "ringbuffer underflowed during playback, mode -> PREFETCHING");
+                    } else {
+                        ESP_LOGI(TAG, "ringbuffer prefetch complete, mode -> PREFETCHING");
+                    }
                     s_cb.ringbuffer_mode = RINGBUFFER_MODE_PREFETCHING;
                     break;
                 }
@@ -164,6 +174,7 @@ void boombox_audio_i2s_start(void)
     }
     ESP_ERROR_CHECK(i2s_channel_enable(s_cb.tx_chan));
 
+    atomic_store(&s_streaming, false);
     s_cb.ringbuffer_mode = RINGBUFFER_MODE_PREFETCHING;
     if (s_cb.write_semaphore == NULL && (s_cb.write_semaphore = xSemaphoreCreateBinary()) == NULL) {
         ESP_LOGE(TAG, "%s: semaphore create failed", __func__);
@@ -196,6 +207,7 @@ err_sem:
 
 void boombox_audio_i2s_stop(void)
 {
+    atomic_store(&s_streaming, false);
     if (s_cb.chan_st == CHANNEL_STATUS_ENABLED) {
         ESP_ERROR_CHECK(i2s_channel_disable(s_cb.tx_chan));
         s_cb.chan_st = CHANNEL_STATUS_OPENED;

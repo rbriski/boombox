@@ -1532,10 +1532,13 @@
       AVRCP metadata is not yet available, so metadata decoration is explicitly
       unavailable rather than simulated.</li>
       <li>UART heartbeat evidence now records free and minimum heap, A2DP
-      connection/stream state, packet count, I2S ring-buffer underflow count,
-      and UI refresh count. The counters make the physical coexistence record
-      auditable; a matrix pass requires no audible dropout, no correlated PWM
-      artifact, and zero observed underruns.</li>
+      connection/stream state, accepted ring-buffer packet count, rejected
+      packet/byte counts, I2S ring-buffer underflow count, and UI refresh
+      count. An underflow counts only when A2DP reports active playback, not
+      when normal prefetching drains the buffer. The counters make the physical
+      coexistence record auditable; a matrix pass requires no audible dropout,
+      no correlated PWM artifact, zero rejected packets, and zero observed
+      underruns.</li>
     </ul>
     <p><strong>Required bench record before declaring Gate C PASS:</strong>
     play known-good audio through the PCM5102A and run all four rows of

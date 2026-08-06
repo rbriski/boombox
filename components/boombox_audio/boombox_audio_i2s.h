@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -37,7 +38,12 @@ void boombox_audio_i2s_reconfigure(const esp_a2d_mcc_t *mcc);
  * (0 if dropped because the ring buffer is full). Never blocks the caller. */
 size_t boombox_audio_i2s_write(const uint8_t *data, size_t len);
 
-/* Number of drain-task ring-buffer underflows since boot. */
+/* Mark whether A2DP is actively streaming. The drain task uses this to
+ * distinguish real playback starvation from its normal prefetch transition. */
+void boombox_audio_i2s_set_streaming(bool active);
+
+/* Number of drain-task ring-buffer underflows while A2DP was actively
+ * streaming, since boot. */
 uint32_t boombox_audio_i2s_get_underrun_count(void);
 
 #ifdef __cplusplus

@@ -21,6 +21,7 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 static const char *TAG = "boombox_ui";
@@ -59,10 +60,23 @@ static esp_lcd_panel_handle_t s_panel = NULL;
 static esp_lcd_panel_io_handle_t s_io = NULL;
 static bool s_backlight_ready = false;
 static uint16_t *s_framebuffer = NULL;
+static SemaphoreHandle_t s_framebuffer_ready = NULL;
 static TaskHandle_t s_status_task = NULL;
 static _Atomic uint32_t s_refresh_count = 0;
 static _Atomic bool s_error_requested = false;
 static char s_error_message[24] = "ERROR";
+
+static bool boombox_ui_on_color_trans_done(esp_lcd_panel_io_handle_t panel_io,
+                                           esp_lcd_panel_io_event_data_t *event_data, void *user_ctx)
+{
+    (void)panel_io;
+    (void)event_data;
+    (void)user_ctx;
+
+    BaseType_t higher_priority_task_woken = pdFALSE;
+    xSemaphoreGiveFromISR(s_framebuffer_ready, &higher_priority_task_woken);
+    return higher_priority_task_woken == pdTRUE;
+}
 
 static const boombox_ui_glyph_t *find_glyph(char ch)
 {
@@ -138,6 +152,7 @@ esp_err_t boombox_ui_init(void)
         .spi_mode = 0,
         .pclk_hz = BOOMBOX_UI_SPI_PCLK_HZ,
         .trans_queue_depth = 10,
+        .on_color_trans_done = boombox_ui_on_color_trans_done,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
     };
@@ -160,6 +175,8 @@ esp_err_t boombox_ui_init(void)
     ESP_RETURN_ON_ERROR(esp_lcd_panel_invert_color(s_panel, true), TAG, "invert_color");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(s_panel, true), TAG, "disp_on");
 
+    s_framebuffer_ready = xSemaphoreCreateBinary();
+    ESP_RETURN_ON_FALSE(s_framebuffer_ready != NULL, ESP_ERR_NO_MEM, TAG, "framebuffer completion semaphore");
     s_framebuffer = heap_caps_calloc(BOOMBOX_UI_WIDTH * BOOMBOX_UI_HEIGHT, sizeof(uint16_t), MALLOC_CAP_DMA);
     ESP_RETURN_ON_FALSE(s_framebuffer != NULL, ESP_ERR_NO_MEM, TAG, "framebuffer alloc");
 
@@ -230,12 +247,13 @@ esp_err_t boombox_ui_draw_text(int x, int y, int scale, uint16_t rgb565_color, c
 
 esp_err_t boombox_ui_present(void)
 {
-    if (s_panel == NULL || s_framebuffer == NULL) {
+    if (s_panel == NULL || s_framebuffer == NULL || s_framebuffer_ready == NULL) {
         return ESP_ERR_INVALID_STATE;
     }
 
     esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel, 0, 0, BOOMBOX_UI_WIDTH, BOOMBOX_UI_HEIGHT, s_framebuffer);
     if (err == ESP_OK) {
+        xSemaphoreTake(s_framebuffer_ready, portMAX_DELAY);
         atomic_fetch_add(&s_refresh_count, 1);
     }
     return err;
