@@ -137,7 +137,7 @@ esp_err_t boombox_ui_init(void)
     ESP_RETURN_ON_ERROR(esp_lcd_panel_invert_color(s_panel, true), TAG, "invert_color");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(s_panel, true), TAG, "disp_on");
 
-    s_framebuffer = heap_caps_malloc(BOOMBOX_UI_WIDTH * BOOMBOX_UI_HEIGHT * sizeof(uint16_t), MALLOC_CAP_DMA);
+    s_framebuffer = heap_caps_calloc(BOOMBOX_UI_WIDTH * BOOMBOX_UI_HEIGHT, sizeof(uint16_t), MALLOC_CAP_DMA);
     ESP_RETURN_ON_FALSE(s_framebuffer != NULL, ESP_ERR_NO_MEM, TAG, "framebuffer alloc");
 
     ESP_LOGI(TAG, "ST7789 init done: %dx%d landscape, gap (%d,%d)", BOOMBOX_UI_WIDTH, BOOMBOX_UI_HEIGHT,
@@ -150,7 +150,7 @@ esp_err_t boombox_ui_init(void)
 esp_err_t boombox_ui_clear(uint16_t rgb565_color)
 {
     if (s_framebuffer == NULL) {
-        return ESP_ERR_NO_MEM;
+        return ESP_ERR_INVALID_STATE;
     }
     for (int i = 0; i < BOOMBOX_UI_WIDTH * BOOMBOX_UI_HEIGHT; i++)
         s_framebuffer[i] = rgb565_color;
@@ -169,7 +169,7 @@ static esp_err_t draw_char(int x, int y, int scale, uint16_t color, char ch)
     }
 
     if (s_framebuffer == NULL) {
-        return ESP_ERR_NO_MEM;
+        return ESP_ERR_INVALID_STATE;
     }
     for (int row = 0; row < 7; row++) {
         uint8_t bits = g->rows[row];
@@ -190,6 +190,10 @@ static esp_err_t draw_char(int x, int y, int scale, uint16_t color, char ch)
 
 esp_err_t boombox_ui_draw_text(int x, int y, int scale, uint16_t rgb565_color, const char *text)
 {
+    if (text == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     int cursor_x = x;
     for (const char *p = text; *p != '\0'; p++) {
         esp_err_t err = draw_char(cursor_x, y, scale, rgb565_color, *p);
@@ -199,6 +203,15 @@ esp_err_t boombox_ui_draw_text(int x, int y, int scale, uint16_t rgb565_color, c
         cursor_x += 6 * scale; /* 5 wide + 1 spacing column */
     }
     return ESP_OK;
+}
+
+esp_err_t boombox_ui_present(void)
+{
+    if (s_panel == NULL || s_framebuffer == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    return esp_lcd_panel_draw_bitmap(s_panel, 0, 0, BOOMBOX_UI_WIDTH, BOOMBOX_UI_HEIGHT, s_framebuffer);
 }
 
 esp_err_t boombox_ui_show_boot_screen(void)
@@ -220,8 +233,7 @@ esp_err_t boombox_ui_show_boot_screen(void)
 
     ESP_RETURN_ON_ERROR(boombox_ui_draw_text(x1 < 0 ? 0 : x1, y1 < 0 ? 0 : y1, scale1, white, line1), TAG, "line1");
     ESP_RETURN_ON_ERROR(boombox_ui_draw_text(x2 < 0 ? 0 : x2, y2 < 0 ? 0 : y2, scale2, white, line2), TAG, "line2");
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_draw_bitmap(s_panel, 0, 0, BOOMBOX_UI_WIDTH, BOOMBOX_UI_HEIGHT, s_framebuffer),
-                        TAG, "present framebuffer");
+    ESP_RETURN_ON_ERROR(boombox_ui_present(), TAG, "present framebuffer");
 
     ESP_RETURN_ON_ERROR(boombox_ui_set_backlight(60), TAG, "backlight on");
     ESP_LOGI(TAG, "boot screen drawn: \"%s\" / \"%s\"", line1, line2);

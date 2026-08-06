@@ -24,13 +24,18 @@ int boombox_ui_get_height(void);
 /* Backlight brightness, 0-100 (PWM duty on BOOMBOX_TFT_BL_GPIO). */
 esp_err_t boombox_ui_set_backlight(uint8_t percent);
 
-/* Fill the whole panel with a single RGB565 color. */
+/* Fill the offscreen framebuffer with a single RGB565 color. Call
+ * boombox_ui_present() to send the completed framebuffer to the panel. */
 esp_err_t boombox_ui_clear(uint16_t rgb565_color);
 
 /* Draw one line of text (5x7 glyphs, integer scale) at (x, y) in the given
- * color on a black background. Glyph set: space - / 0-9 A D E G I L P R T X
- * (enough for the Phase 5 boot screen; extend boombox_ui_font.c as needed). */
+ * color into the offscreen framebuffer. Call boombox_ui_present() after all
+ * drawing is complete. Glyph set: space - / 0-9 A D E G I L P R T X (enough
+ * for the Phase 5 boot screen; extend boombox_ui_font.c as needed). */
 esp_err_t boombox_ui_draw_text(int x, int y, int scale, uint16_t rgb565_color, const char *text);
+
+/* Send the current offscreen framebuffer to the panel. */
+esp_err_t boombox_ui_present(void);
 
 /* Phase 5 boot screen: "RX-5235" / "DIGITAL TAPE", centered. */
 esp_err_t boombox_ui_show_boot_screen(void);
