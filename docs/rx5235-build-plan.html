@@ -1302,12 +1302,11 @@
 
   <section class="phase">
     <h3 id="phase-5">Phase 5 — Display bring-up without breaking audio</h3>
-    <p><span class="status status--conditional">DISPLAY-ONLY CODE LANDED,
-    NOT YET FLASHED</span> — <a href="#gate-b">Gate B</a> (bb-ro9) implemented
-    and build-verified the display-only firmware below; it has not been
-    flashed or physically observed this session (see Gate B). Gate A's
-    extended audio qualification is still separately open and continues to
-    gate merging display output into the A2DP project (this phase's step 3).</p>
+    <p><span class="status status--pass">GATE B PASS — 2026-08-06</span> —
+    <a href="#gate-b">Gate B</a> display-only firmware was backed up, flashed,
+    and visually confirmed on the physical panel. Gate A's extended audio
+    qualification remains separately open; Phase 5's audio/display integration
+    and coexistence matrix are still future Gate C work.</p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Light up the onboard ST7789 1.14&Prime; 135&times;240 IPS panel
@@ -1357,11 +1356,14 @@
     layout, §17 row), not a reason to change wiring.</p></div>
 
     <h4 id="gate-b">M3 Gate B — display-only ST7789 bring-up (bb-ro9)</h4>
-    <p><span class="status status--conditional">CODE + BUILD EVIDENCE ONLY —
-    2026-07-20</span> — this session implemented and build-verified the
-    Phase 5 display-only firmware but did <strong>not</strong> flash it or
-    physically observe the panel. Recorded honestly rather than guessed, per
-    this project's rule against claiming unobtained observations.</p>
+    <p><span class="status status--pass">PASS — 2026-08-06</span> — the
+    display-only image was verified at the live bench. Before the flash write,
+    a fresh full-flash backup was saved outside the repository at
+    <code>/home/nvidia/Library/Application Support/Boombox/backups/boombox-flash-backup-20260806-185505Z-16MB.bin</code>
+    (16,777,216 bytes; SHA-256
+    <code>64c44431e70c2e686199b1ab6faa12691c19fc472accc8af1ff5420bb19eeb1b</code>).
+    The image was flashed through the ordinary explicit flash path, with no
+    bulk erase. The serial boot was clean through ST7789 initialization.</p>
     <p><strong>Landed this session:</strong></p>
     <ul>
       <li><code>components/boombox_board/include/boombox_board.h</code> —
@@ -1377,9 +1379,7 @@
       rendering <code>RX-5235</code> / <code>DIGITAL TAPE</code> centered on
       a landscape 240&times;135 framebuffer (native panel is 135&times;240
       portrait; landscape via <code>esp_lcd_panel_swap_xy</code> +
-      <code>esp_lcd_panel_mirror</code>, gap offset 40/53 — a starting value
-      from the panel's known non-visible border, <strong>not yet confirmed
-      against the physical render</strong>).</li>
+      <code>esp_lcd_panel_mirror</code>, gap offset 40/53).</li>
       <li><code>main/boombox_main.c</code> stays thin: calls
       <code>boombox_ui_init()</code> then <code>boombox_ui_show_boot_screen()</code>
       once at boot, no Bluetooth/audio init — matches the &ldquo;display-only
@@ -1387,6 +1387,11 @@
       is drawn, then set to 60%; redraws are one-shot at boot, not a
       constant loop (event-driven redraw strategy for future screen states
       is left as a follow-on once a state machine exists to drive it).</li>
+      <li>The persistent DMA-capable framebuffer is 64.8&nbsp;KB
+      (240&times;135&times;16-bit). It is an intentional Gate B tradeoff for
+      safe, explicit full-frame presents, not an implicit memory assumption.
+      Gate C must account for it while evaluating display/audio coexistence
+      memory headroom.</li>
       <li><code>idf.py build</code> succeeds cleanly (zero warnings) against
       the pinned ESP-IDF v6.0.2 tree: <code>boombox.bin</code> 0x2f890 bytes,
       81% of the app partition free. <code>scripts/build.sh</code> itself
@@ -1400,48 +1405,19 @@
       the identifiable audio-only rollback point this phase's plan
       requires.</li>
     </ul>
-    <p><strong>Blocked — needs more bench time than this session had:</strong></p>
+    <p><strong>Bench observations:</strong></p>
     <ul>
-      <li><strong>Flash backup refresh:</strong> the on-file backup
-      (<code>boombox-flash-backup-20260717-144304-16MB.bin</code>) predates
-      the 2026-07-18 M2 audio flash, so it is not an accurate rollback point
-      for a write made now. A fresh full 16&nbsp;MB read was attempted at
-      460800/230400/115200 baud; 460800 failed immediately
-      (&ldquo;Invalid head of packet&rdquo;, likely cable/hub-adjacent serial
-      noise), 230400 stalled and errored around 8.9% (&ldquo;Packet content
-      transfer stopped&rdquo;), and 115200 did not complete inside this
-      session's time budget. No partial backup file was left in place. Per
-      this repo's hard rule 2 (back up before writing), <strong>no flash
-      write was performed</strong>.</li>
-      <li><strong>Physical render:</strong> even with a successful flash,
-      confirming the rendered text, chosen rotation, and backlight
-      brightness levels requires a human looking at the physical panel —
-      this session has no camera/visual channel to the bench. The landscape
-      swap/mirror/gap-offset choice above is a documented starting point,
-      not a confirmed one.</li>
+      <li>The human observer confirmed that <code>RX-5235</code> and
+      <code>DIGITAL TAPE</code> pixels were legible and correct, right-side-up
+      in landscape, and fit the cassette window. Gap 40/53 and 60% brightness
+      were accepted; the image was stable with no flashing.</li>
+      <li>The display-only result does not qualify audio/display coexistence.
+      The 64.8&nbsp;KB persistent framebuffer is a Gate C memory item alongside
+      redraw timing and the existing Gate A audio qualification.</li>
     </ul>
-    <p><strong>Gate B bench protocol (ready to run in one live session):</strong></p>
-    <ol>
-      <li>Retake the flash backup at a conservative baud (115200, allow
-      it to run to completion — roughly 20&ndash;25&nbsp;min for
-      16&nbsp;MB over this CH9102 bridge) or investigate the serial
-      reliability issue first (direct cable, no hub, alternate USB port).
-      Record path, size, and <code>shasum -a 256</code>.</li>
-      <li><code>scripts/build.sh -p /dev/cu.usbserial-XXXX flash monitor</code>
-      (ordinary explicit flash, no erase) and capture the boot log:
-      <code>boombox_ui: ST7789 init done</code> /
-      <code>boombox_ui: boot screen drawn</code> lines with no crash/panic
-      is the machine-verifiable half of this gate.</li>
-      <li>Human looks at the panel and reports: is <code>RX-5235</code> /
-      <code>DIGITAL TAPE</code> legible and correctly oriented (landscape,
-      cassette-window fit), does the chosen gap offset clip or misalign the
-      text, and is 60% backlight duty a sane default brightness. Adjust
-      <code>BOOMBOX_UI_GAP_X</code>/<code>_GAP_Y</code> and rotation in
-      <code>components/boombox_ui/boombox_ui.c</code> if not.</li>
-    </ol>
-    <p>Until that protocol runs, the physical half of this phase's
-    &ldquo;Pass&rdquo; condition and the coexistence-matrix step remain
-    open; the code/build half is done and merge-reviewable now.</p>
+    <p>Gate B is complete. Gate C remains responsible for proving that this
+    display path and its deliberate framebuffer allocation coexist cleanly
+    with the A2DP/I2S workload.</p>
   </section>
 
   <section>
