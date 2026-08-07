@@ -368,7 +368,7 @@
   return to if that milestone goes wrong.</p>
   <div class="table-scroll">
     <table>
-      <caption>Milestones with present status (2026-07-18), prerequisites, exit
+      <caption>Milestones with present status (audited 2026-08-06), prerequisites, exit
       evidence, and rollback</caption>
       <thead>
         <tr>
@@ -448,10 +448,14 @@
           <th scope="row">M3</th>
           <td>Screen shows RX-5235 UI while audio plays cleanly</td>
           <td><span class="status status--blocked">BLOCKED / HOLD</span> —
-          <a href="#gate-a">Gate A</a> (extended Phase 4 qualification) needs
-          a live human bench session; <a href="#gate-b">Gate B</a>
-          display-only firmware is code/build-complete but not yet flashed
-          or physically observed (2026-07-20)</td>
+          <a href="#gate-b">Gate B</a> is physically verified PASS and the
+          integrated <a href="#gate-c">Gate C</a> session established
+          connection/play/pause/reconnect UI behavior without reported packet
+          rejects or underruns. M3 cannot pass: <a href="#gate-a">Gate A</a>
+          still lacks stereo, secured-wiring noise, and the 45-minute soak;
+          Gate C has no preserved raw serial transcript and its brightness and
+          metadata/animation matrix rows remain unexercised or unavailable.
+          See the audited <a href="#test-coexist">matrix 11.8</a>.</td>
           <td>M2; <a href="#gate-a">Gate A</a>, <a href="#phase-5">Phase 5</a>,
           <a href="#gate-b">Gate B</a></td>
           <td><a href="#test-coexist">Display/audio coexistence matrix</a>
@@ -559,7 +563,7 @@
   </div>
 
   <h2 id="next">7. Next three moves</h2>
-  <p>A truthful current-state dashboard, honest to 2026-07-18. The backup
+  <p>A truthful current-state dashboard, audited to 2026-08-06. The backup
   exists, the toolchain works, the smoke app is flashed, the board's product
   identity is confirmed, and — new this round — <strong>both the T-Display
   board and the PCM5102A module have been photographed and read</strong>
@@ -1304,9 +1308,10 @@
     <h3 id="phase-5">Phase 5 — Display bring-up without breaking audio</h3>
     <p><span class="status status--pass">GATE B PASS — 2026-08-06</span> —
     <a href="#gate-b">Gate B</a> display-only firmware was backed up, flashed,
-    and visually confirmed on the physical panel. Gate A's extended audio
-    qualification remains separately open; Phase 5's audio/display integration
-    and coexistence matrix are still future Gate C work.</p>
+    and visually confirmed on the physical panel. Gate C has physical
+    connection/playback/UI evidence, but its complete coexistence matrix is
+    not yet evidenced; Gate A's extended audio qualification remains separately
+    open.</p>
     <dl class="kv">
       <dt>Purpose</dt>
       <dd>Light up the onboard ST7789 1.14&Prime; 135&times;240 IPS panel
@@ -1515,14 +1520,16 @@
   <section>
     <h4 id="gate-c">M3 Gate C — integrated display / A2DP software
     integration (bb-475)</h4>
-    <p><span class="status status--conditional">CODE + BUILD EVIDENCE ONLY —
+    <p><span class="status status--conditional">PARTIAL PHYSICAL EVIDENCE —
     2026-08-06</span> — Gate C combines the already verified display pin map
     and M2-derived A2DP/I2S component without changing either wiring contract.
-    It is deliberately <strong>not</strong> a hardware pass: this change was
-    built only, with no flash, erase, rewire, or claim of physical coexistence
-    evidence. The first later hardware write must be an ordinary full flash
-    because the partition table changed in bb-qks; it is never an app-only
-    write or a bulk erase.</p>
+    The integrated image was subsequently flashed by the ordinary explicit
+    path (no bulk erase). A live human session cleared a stale laptop bond,
+    paired with PIN 1234, then played, paused, resumed, disconnected,
+    reconnected, and played again; the UI reported CONNECTED, PLAYING, PAUSED,
+    and WAITING. The durable Gate C work record reports zero rejected packets,
+    bytes, and underruns. That supports these exercised state transitions, not
+    a complete coexistence-matrix PASS.</p>
     <ul>
       <li><code>boombox_ui</code> owns a low-priority (priority 2), APP_CPU
       pinned status task. It samples only the bounded audio state surface at
@@ -1542,15 +1549,13 @@
       no correlated PWM artifact, zero rejected packets, and zero observed
       underruns.</li>
     </ul>
-    <p><strong>Required bench record before declaring Gate C PASS:</strong>
-    play known-good audio through the PCM5102A and run all four rows of
-    <a href="#test-coexist">matrix 11.8</a>: state-change redraw churn,
-    animation cost (currently unavailable and therefore labelled), a 0–100%
-    backlight sweep, and long-title metadata bursts (currently unavailable and
-    therefore labelled). Capture the serial heartbeat around each row and stop
-    on any audible glitch or non-zero new underrun. If redraws correlate with
-    glitches, lower refresh/redraw scope or revisit scheduling/DMA depth; do
-    not change verified wiring.</p>
+    <p><strong>Audit limitation and next evidence:</strong> the concise Gate C
+    work record is the available durable source for the session counters; its
+    raw serial transcript was not preserved at a recorded off-repository path.
+    Preserve a redacted transcript for the next run, exercise the brightness
+    sweep, and label animation/metadata rows unavailable until implemented.
+    Do not declare Gate C or M3 PASS until the resulting
+    <a href="#test-coexist">matrix 11.8</a> record is complete.</p>
   </section>
 
   <section class="phase">
@@ -2665,17 +2670,20 @@
       <caption>Run at Phase 5 and continuously thereafter</caption>
       <thead>
         <tr><th scope="col">Test</th><th scope="col">How</th>
-        <th scope="col">Pass</th></tr>
+        <th scope="col">Pass</th><th scope="col">Audited M3 record</th></tr>
       </thead>
       <tbody>
         <tr><td>Redraw under load</td><td>Force screen-state churn while
-        playing</td><td>Zero audible dropouts</td></tr>
+        playing</td><td>Zero audible dropouts</td><td><span class="status status--conditional">PARTIAL PASS</span> — 2026-08-06
+        play/pause/resume/disconnect/reconnect transitions rendered; durable
+        Gate C record reports 0 rejected packets/bytes and 0 underruns. Raw
+        serial transcript was not retained.</td></tr>
         <tr><td>Animation cost</td><td>Enable VU/reel animation</td>
-        <td>No dropouts; CPU headroom logged (§15)</td></tr>
+        <td>No dropouts; CPU headroom logged (§15)</td><td><span class="status status--unknown">UNAVAILABLE</span> — no animation implementation.</td></tr>
         <tr><td>Brightness coupling</td><td>Sweep backlight during
-        playback</td><td>No audio artifacts correlated with PWM</td></tr>
+        playback</td><td>No audio artifacts correlated with PWM</td><td><span class="status status--unknown">NOT RECORDED</span> — required next bench row.</td></tr>
         <tr><td>Metadata burst</td><td>Track changes with long titles</td>
-        <td>UI updates without audio glitch</td></tr>
+        <td>UI updates without audio glitch</td><td><span class="status status--unknown">UNAVAILABLE</span> — AVRCP metadata is not implemented.</td></tr>
       </tbody>
     </table>
   </div>
